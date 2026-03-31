@@ -340,7 +340,7 @@ func TestSortedPaths(t *testing.T) {
 	Link("/m", "up", "/a", "A")
 
 	all := AllLinks()
-	paths := SortedPaths(all)
+	paths := sortedPaths(all)
 	// /a gets auto-registered from symmetric "related"
 	assert.True(t, len(paths) >= 3)
 	for i := 1; i < len(paths); i++ {
