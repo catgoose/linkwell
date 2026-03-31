@@ -1,29 +1,33 @@
-// Package hypermedia provides types and helpers for HATEOAS-style hypermedia controls
-// embedded in HTMX responses. This package has no imports from this project.
+// Package linkwell provides types and helpers for HATEOAS-style hypermedia
+// controls, link relations (RFC 8288), and navigation primitives. All types are
+// pure data descriptors — they carry no rendering logic and can be consumed by
+// any template engine (templ, html/template, etc.) or serialized to JSON.
 package linkwell
 
-// ControlKind identifies the rendering strategy for a Control.
+// ControlKind identifies the rendering strategy a template should use for a
+// Control. Each kind implies a specific HTML element and behavior pattern.
 type ControlKind string
 
 const (
-	// ControlKindRetry renders an HTMX button that re-issues a request.
+	// ControlKindRetry renders an HTMX button that re-issues a failed request.
 	ControlKindRetry ControlKind = "retry"
-	// ControlKindLink renders a plain anchor element.
+	// ControlKindLink renders a plain HTML anchor (<a>) element.
 	ControlKindLink ControlKind = "link"
-	// ControlKindHTMX renders an arbitrary HTMX button using attribute spread.
+	// ControlKindHTMX renders a button with HTMX attributes spread from HxRequest.
 	ControlKindHTMX ControlKind = "htmx"
-	// ControlKindDismiss renders a HyperScript close button.
+	// ControlKindDismiss renders a close button powered by HyperScript.
 	ControlKindDismiss ControlKind = "dismiss"
-	// ControlKindBack renders a browser history.back() button.
+	// ControlKindBack renders a button that calls browser history.back().
 	ControlKindBack ControlKind = "back"
-	// ControlKindHome renders a "Go Home" navigation button.
+	// ControlKindHome renders a navigation button that redirects to the home page.
 	ControlKindHome ControlKind = "home"
-	// ControlKindReport renders an HTMX button that posts a report and triggers an alert.
+	// ControlKindReport renders an HTMX button that fetches a report modal.
 	ControlKindReport ControlKind = "report"
 )
 
-// ControlVariant determines the visual emphasis of a Control.
-// The zero value ("") renders as secondary (safe default).
+// ControlVariant determines the visual emphasis of a Control. Templates map
+// variants to CSS classes (e.g., DaisyUI btn-primary, btn-ghost). The zero
+// value ("") renders as secondary, which is a safe default.
 type ControlVariant string
 
 const (
@@ -39,8 +43,9 @@ const (
 	VariantLink ControlVariant = "link"
 )
 
-// SwapMode is a typed HTMX swap strategy for Control.Swap.
-// Defined separately from htmx.SwapStrategy to keep this package zero-dependency.
+// SwapMode is a typed HTMX swap strategy for Control.Swap. These mirror the
+// hx-swap attribute values. Defined as a separate type (rather than importing
+// an htmx package) to keep linkwell dependency-free.
 type SwapMode string
 
 // HTMX swap strategy constants.
@@ -55,8 +60,9 @@ const (
 	SwapDelete      SwapMode = "delete"
 )
 
-// Icon is a typed icon name for Control.Icon.
-// Custom values are still valid via Icon("my-icon").
+// Icon is a typed icon name for Control.Icon. The built-in constants cover
+// common actions, but any string is valid — templates interpret the value to
+// select the appropriate icon component (e.g., Heroicons, Lucide).
 type Icon string
 
 // Built-in icon name constants.
@@ -101,7 +107,8 @@ const (
 	TargetBody = "body"
 )
 
-// HxMethod is the HTTP verb used in an HTMX request attribute (hx-get, hx-post, etc.).
+// HxMethod is the HTTP verb used in an HTMX request attribute. The value maps
+// directly to the hx-get, hx-post, hx-put, hx-patch, or hx-delete attribute name.
 type HxMethod string
 
 // HTTP verb constants for HTMX request attributes.
@@ -113,17 +120,27 @@ const (
 	HxMethodDelete HxMethod = "delete"
 )
 
-// HxRequestConfig describes the HTMX request attributes for a control.
+// HxRequestConfig describes the HTMX request attributes for a control. It maps
+// to the hx-{method}, hx-target, hx-include, and hx-vals attributes. Use the
+// HxGet, HxPost, HxPut, HxPatch, and HxDelete helpers for common cases, or
+// build directly for full control.
 type HxRequestConfig struct {
-	Method  HxMethod
-	URL     string
-	Target  string
+	// Method is the HTTP verb (maps to hx-get, hx-post, etc.).
+	Method HxMethod
+	// URL is the request endpoint.
+	URL string
+	// Target is the CSS selector for hx-target.
+	Target string
+	// Include is the CSS selector for hx-include (e.g., "closest form").
 	Include string
-	Vals    string // JSON-encoded hx-vals for form data (e.g. `{"status":"active"}`)
+	// Vals is a JSON-encoded string for hx-vals (e.g., `{"status":"active"}`).
+	Vals string
 }
 
-// Attrs converts the config to a map[string]string for interop with NavItem,
-// FilterField, or other consumers that use generic attribute maps.
+// Attrs converts the config to a map[string]string suitable for attribute
+// spreading in templates. Keys are the HTMX attribute suffixes (e.g., "get",
+// "target", "include", "vals"). Used for interop with NavItem.HTMXAttrs and
+// other consumers that accept generic attribute maps.
 func (r HxRequestConfig) Attrs() map[string]string {
 	m := make(map[string]string, 4)
 	if r.URL != "" {
@@ -166,26 +183,42 @@ func HxDelete(url, target string) HxRequestConfig {
 	return HxRequestConfig{Method: HxMethodDelete, URL: url, Target: target}
 }
 
-// Control is a pure-data descriptor for a single hypermedia affordance.
-// Templ components consume these to render the appropriate HTML element.
+// Control is a pure-data descriptor for a single hypermedia affordance — a
+// button, link, or action that a user can take. Templates consume controls to
+// render the appropriate HTML elements with the correct HTMX attributes,
+// confirmation dialogs, icons, and visual styles. Controls are value types;
+// use the With* methods to derive modified copies.
 type Control struct {
-	HxRequest   HxRequestConfig
-	Kind        ControlKind
-	Label       string
-	Href        string
-	Variant     ControlVariant
-	Confirm     string
-	Icon        Icon
-	PushURL     string
-	Swap        SwapMode
-	Disabled    bool
+	// HxRequest carries the HTMX request attributes (method, URL, target, etc.).
+	HxRequest HxRequestConfig
+	// Kind determines how the template renders this control (button, link, etc.).
+	Kind ControlKind
+	// Label is the user-visible text for the control.
+	Label string
+	// Href is the URL for link-type controls (ControlKindLink, ControlKindHome).
+	Href string
+	// Variant sets the visual emphasis (primary, danger, ghost, etc.).
+	Variant ControlVariant
+	// Confirm is an optional hx-confirm message shown before the action executes.
+	Confirm string
+	// Icon is an optional icon name rendered alongside the label.
+	Icon Icon
+	// PushURL is set on navigation controls to update the browser URL via hx-push-url.
+	PushURL string
+	// Swap overrides the default hx-swap strategy for this control.
+	Swap SwapMode
+	// Disabled renders the control in a non-interactive state.
+	Disabled bool
+	// ErrorTarget overrides the parent hx-target-error so error responses render
+	// inline near this control rather than in a global error container.
 	ErrorTarget string
-	ModalID     string
+	// ModalID ties this control to a specific modal dialog.
+	ModalID string
 }
 
-// RetryButton creates an HTMX button that re-issues a request using the given method.
-// method must be one of: "get", "post", "put", "delete", "patch".
-// target is the CSS selector for hx-target.
+// RetryButton creates a primary-variant HTMX button that re-issues a failed
+// request. Typically used in error states to let the user retry the operation
+// that produced the error.
 func RetryButton(label string, method HxMethod, url, target string) Control {
 	return Control{
 		Kind:      ControlKindRetry,
@@ -195,8 +228,9 @@ func RetryButton(label string, method HxMethod, url, target string) Control {
 	}
 }
 
-// ConfirmAction creates a danger-variant HTMX button with an hx-confirm gate.
-// Use for destructive operations that require user confirmation before proceeding.
+// ConfirmAction creates a danger-variant HTMX button with an hx-confirm
+// confirmation dialog. Use for destructive operations (delete, archive) where
+// the user should explicitly confirm before the request is sent.
 func ConfirmAction(label string, method HxMethod, url, target, confirmMsg string) Control {
 	return Control{
 		Kind:      ControlKindHTMX,
@@ -207,8 +241,8 @@ func ConfirmAction(label string, method HxMethod, url, target, confirmMsg string
 	}
 }
 
-// BackButton creates a browser history.back() control rendered via HyperScript.
-// No server round-trip occurs.
+// BackButton creates a client-side browser history.back() control. No server
+// round-trip occurs — the template renders this as a HyperScript-powered button.
 func BackButton(label string) Control {
 	return Control{
 		Kind:  ControlKindBack,
@@ -216,7 +250,8 @@ func BackButton(label string) Control {
 	}
 }
 
-// GoHomeButton creates a "Go Home" navigation control that pushes homeURL to browser history.
+// GoHomeButton creates a navigation control that loads the home page via HTMX
+// GET and pushes homeURL to browser history via hx-push-url.
 func GoHomeButton(label, homeURL, target string) Control {
 	return Control{
 		Kind:      ControlKindHome,
@@ -227,7 +262,7 @@ func GoHomeButton(label, homeURL, target string) Control {
 	}
 }
 
-// RedirectLink creates a same-tab anchor control.
+// RedirectLink creates a plain anchor (<a>) control for same-tab navigation.
 func RedirectLink(label, href string) Control {
 	return Control{
 		Kind:  ControlKindLink,
@@ -236,7 +271,9 @@ func RedirectLink(label, href string) Control {
 	}
 }
 
-// HTMXAction creates an arbitrary HTMX button using the supplied request config.
+// HTMXAction creates an HTMX button with the supplied request config. Use when
+// the preset factory functions do not fit — this gives full control over the
+// HTMX attributes while still producing a typed Control.
 func HTMXAction(label string, req HxRequestConfig) Control {
 	return Control{
 		Kind:      ControlKindHTMX,
@@ -245,9 +282,9 @@ func HTMXAction(label string, req HxRequestConfig) Control {
 	}
 }
 
-// ReportIssueButton creates a button that fetches the Report Issue modal via
-// HTMX GET. The server returns the modal fragment with collected log data; the
-// modal auto-opens on load.
+// ReportIssueButton creates an HTMX button that fetches the Report Issue modal
+// via GET to /report-issue (or /report-issue/{requestID} if provided). The
+// server returns the modal fragment which auto-opens on load.
 func ReportIssueButton(label, requestID string) Control {
 	url := "/report-issue"
 	if requestID != "" {
@@ -260,7 +297,8 @@ func ReportIssueButton(label, requestID string) Control {
 	}
 }
 
-// DismissButton creates a HyperScript-powered dismiss control.
+// DismissButton creates a HyperScript-powered close/dismiss control. Typically
+// used to close error banners, notifications, or alert panels.
 func DismissButton(label string) Control {
 	return Control{
 		Kind:  ControlKindDismiss,
@@ -268,44 +306,46 @@ func DismissButton(label string) Control {
 	}
 }
 
-// WithSwap returns a copy with the given swap mode.
+// WithSwap returns a copy of the control with the given HTMX swap strategy.
 func (c Control) WithSwap(s SwapMode) Control {
 	c.Swap = s
 	return c
 }
 
-// WithVariant returns a copy with the given variant.
+// WithVariant returns a copy of the control with the given visual variant.
 func (c Control) WithVariant(v ControlVariant) Control {
 	c.Variant = v
 	return c
 }
 
-// WithConfirm returns a copy with the given confirmation message.
+// WithConfirm returns a copy of the control with the given hx-confirm message.
 func (c Control) WithConfirm(msg string) Control {
 	c.Confirm = msg
 	return c
 }
 
-// WithIcon returns a copy with the given icon.
+// WithIcon returns a copy of the control with the given icon name.
 func (c Control) WithIcon(i Icon) Control {
 	c.Icon = i
 	return c
 }
 
-// WithDisabled returns a copy with the disabled flag set.
+// WithDisabled returns a copy of the control with the given disabled state.
 func (c Control) WithDisabled(d bool) Control {
 	c.Disabled = d
 	return c
 }
 
-// WithErrorTarget returns a copy with the given hx-target-error selector.
-// This overrides the parent hx-target-error so error responses render inline.
+// WithErrorTarget returns a copy of the control with the given hx-target-error
+// CSS selector, overriding any parent error target so error responses render
+// inline near this control.
 func (c Control) WithErrorTarget(target string) Control {
 	c.ErrorTarget = target
 	return c
 }
 
-// WithInclude returns a copy with the given include selector.
+// WithInclude returns a copy of the request config with the given hx-include
+// CSS selector.
 func (r HxRequestConfig) WithInclude(selector string) HxRequestConfig {
 	r.Include = selector
 	return r
