@@ -236,10 +236,7 @@ func BreadcrumbsFromLinks(path string) []Breadcrumb {
 	visited := map[string]bool{}
 	current := path
 
-	for {
-		if visited[current] {
-			break // prevent cycles
-		}
+	for !visited[current] {
 		visited[current] = true
 
 		upLinks := LinksFor(current, "up")
