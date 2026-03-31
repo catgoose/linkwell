@@ -5,7 +5,8 @@ import (
 	"strconv"
 )
 
-// SortDir indicates the current sort direction for a column.
+// SortDir indicates the current sort direction for a table column. The zero
+// value (SortNone) means the column is not currently sorted.
 type SortDir string
 
 // Sort direction constants for TableCol.SortDir.
@@ -30,28 +31,51 @@ const (
 	PaginationLast  = "»"
 )
 
-// TableCol is a pure-data column descriptor.
-// Sort metadata is precomputed by the handler — templates just render it.
+// TableCol is a pure-data column descriptor for a table header. Sort metadata
+// (direction, toggle URL) is precomputed by the handler so templates render
+// without logic. Non-sortable columns leave SortURL empty.
 type TableCol struct {
-	Key      string
-	Label    string
-	SortDir  SortDir
-	SortURL  string
-	Target   string
-	Include  string
-	Width    string
+	// Key identifies the column (maps to the "sort" query parameter value).
+	Key string
+	// Label is the visible column header text.
+	Label string
+	// SortDir is the current sort direction for this column.
+	SortDir SortDir
+	// SortURL is the HTMX request URL that toggles the sort direction. Built by
+	// SortableCol with the next direction pre-encoded.
+	SortURL string
+	// Target is the CSS selector for hx-target on the sort link.
+	Target string
+	// Include is the CSS selector for hx-include on the sort link (e.g.,
+	// "#filter-form" to forward filter state).
+	Include string
+	// Width is an optional CSS width hint (e.g., "120px", "20%").
+	Width string
+	// Sortable indicates whether the column header renders as a clickable sort link.
 	Sortable bool
 }
 
-// PageInfo carries server-computed pagination state.
+// PageInfo carries server-computed pagination state used by PaginationControls
+// to generate the page navigation bar. All fields are set by the handler; the
+// template just passes PageInfo through.
 type PageInfo struct {
-	BaseURL    string
-	PageParam  string
-	Target     string
-	Include    string
-	Page       int
-	PerPage    int
+	// BaseURL is the current URL (with existing query params preserved).
+	// URLForPage appends/replaces the page parameter.
+	BaseURL string
+	// PageParam overrides the query parameter name for the page number.
+	// Defaults to "page" when empty.
+	PageParam string
+	// Target is the CSS selector for hx-target on pagination links.
+	Target string
+	// Include is the CSS selector for hx-include (e.g., "#filter-form").
+	Include string
+	// Page is the current 1-based page number.
+	Page int
+	// PerPage is the number of items per page.
+	PerPage int
+	// TotalItems is the total number of items across all pages.
 	TotalItems int
+	// TotalPages is the total number of pages. Use ComputeTotalPages to calculate.
 	TotalPages int
 }
 
@@ -63,7 +87,8 @@ func (pi PageInfo) pageParam() string {
 	return pi.PageParam
 }
 
-// URLForPage builds the URL for a specific page using net/url for correct encoding.
+// URLForPage builds the URL for a specific page number by appending or
+// replacing the page query parameter in BaseURL.
 func (pi PageInfo) URLForPage(page int) string {
 	u, err := url.Parse(pi.BaseURL)
 	if err != nil {
@@ -75,7 +100,8 @@ func (pi PageInfo) URLForPage(page int) string {
 	return u.String()
 }
 
-// ComputeTotalPages returns ceil(totalItems / perPage); minimum 1.
+// ComputeTotalPages calculates the number of pages needed to display
+// totalItems at the given perPage size. Always returns at least 1.
 func ComputeTotalPages(totalItems, perPage int) int {
 	if perPage <= 0 {
 		return 1
@@ -90,12 +116,12 @@ func ComputeTotalPages(totalItems, perPage int) int {
 	return pages
 }
 
-// SortableCol creates a TableCol with sort state and toggle URL computed from current request.
-// baseURL: current URL with "sort" and "dir" params already stripped.
-// Toggle logic:
-//   - non-matching key → SortNone, URL points to asc.
-//   - matching key + asc → SortAsc, URL toggles to desc.
-//   - matching key + desc → SortDesc, URL toggles to asc.
+// SortableCol creates a TableCol with precomputed sort state and toggle URL.
+// Pass the current sort key and direction from the request's query parameters.
+// The baseURL should have "sort" and "dir" params already stripped. Toggle
+// logic: clicking an unsorted column sorts ascending, clicking the active
+// ascending column toggles to descending, and clicking the active descending
+// column toggles back to ascending.
 func SortableCol(key, label, currentSortKey, currentSortDir, baseURL, target, include string) TableCol {
 	col := TableCol{
 		Key:      key,
@@ -138,14 +164,11 @@ func SortableCol(key, label, currentSortKey, currentSortDir, baseURL, target, in
 	return col
 }
 
-// PaginationControls generates the []Control slice for a PaginationBar.
-// Exported so it can be tested independently.
-// Returns nil if TotalPages <= 1.
-// Control semantics:
-//
-//	Current page:       Kind=ControlKindHTMX, Disabled=true, Variant=VariantPrimary
-//	Disabled boundary:  Kind=ControlKindHTMX, Disabled=true
-//	Normal page/nav:    Kind=ControlKindHTMX, HxRequest={Method: HxMethodGet, URL: url, Target: ..., Include: ...}
+// PaginationControls generates the control slice for a pagination bar. Returns
+// nil if TotalPages <= 1 (no pagination needed). The returned controls follow
+// a [First][Prev][page window][Next][Last] layout. The current page is rendered
+// as a disabled primary-variant control; boundary controls (First/Prev at page
+// 1, Next/Last at last page) are disabled.
 func PaginationControls(info PageInfo) []Control {
 	if info.TotalPages <= 1 {
 		return nil

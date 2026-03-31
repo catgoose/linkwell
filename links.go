@@ -7,6 +7,7 @@ import (
 )
 
 // linkRegistry stores registered link relations keyed by source path.
+// Protected by linksMu for concurrent access.
 var (
 	linksMu  sync.RWMutex
 	linksMap = make(map[string][]LinkRelation)
@@ -15,8 +16,11 @@ var (
 	hubsMap = make(map[string]string) // path -> title
 )
 
-// Link registers a relationship from a source path to a target.
-// For rel="related", the inverse is automatically registered (symmetric).
+// Link registers a directional relationship from a source path to a target.
+// The rel parameter should be an IANA link relation type (e.g., "related", "up",
+// "collection"). For rel="related", the inverse link is automatically created
+// so the relationship is symmetric — both pages will see each other in their
+// link sets. Registration is safe for concurrent use.
 func Link(source, rel, target, title string) {
 	linksMu.Lock()
 	defer linksMu.Unlock()
@@ -40,8 +44,9 @@ func Link(source, rel, target, title string) {
 	}
 }
 
-// LinksFor returns all registered link relations for a path.
-// If rels is provided, only relations matching those types are returned.
+// LinksFor returns all registered link relations for the given path. If one or
+// more rel types are provided, only relations matching those types are returned.
+// Returns a copy of the internal slice, safe to modify.
 func LinksFor(path string, rels ...string) []LinkRelation {
 	linksMu.RLock()
 	defer linksMu.RUnlock()
@@ -67,8 +72,9 @@ func LinksFor(path string, rels ...string) []LinkRelation {
 	return filtered
 }
 
-// RelatedLinksFor returns only rel="related" links for a path,
-// excluding the current path itself (for use in context bars).
+// RelatedLinksFor returns only rel="related" links for a path, excluding the
+// path itself and deduplicating by href. Useful for rendering context bars or
+// "See also" panels where self-links would be redundant.
 func RelatedLinksFor(path string) []LinkRelation {
 	links := LinksFor(path, "related")
 	// Deduplicate by href (symmetric registration can create dupes)
@@ -84,8 +90,10 @@ func RelatedLinksFor(path string) []LinkRelation {
 	return unique
 }
 
-// Ring registers symmetric rel="related" links between all members.
-// Every member links to every other member. The name is used for UI grouping.
+// Ring registers symmetric rel="related" links between all members, creating a
+// fully-connected group where every member links to every other member. The name
+// parameter is stored as the Group field on each LinkRelation for UI grouping.
+// Duplicate links are skipped. Registration is safe for concurrent use.
 func Ring(name string, members ...RelEntry) {
 	linksMu.Lock()
 	defer linksMu.Unlock()
@@ -107,9 +115,11 @@ func Ring(name string, members ...RelEntry) {
 	}
 }
 
-// Hub registers a center page that links to all spokes, and each spoke
-// links back to the center only. Spokes do not link to each other.
-// The centerTitle is used as the group name for all links.
+// Hub registers a star topology where a center page links to all spokes via
+// rel="related", and each spoke links back to the center via rel="up". Spokes
+// do not link to each other. The centerTitle is used as the Group field on all
+// links and as the hub label returned by Hubs. Registration is safe for
+// concurrent use.
 func Hub(centerPath, centerTitle string, spokes ...RelEntry) {
 	hubsMu.Lock()
 	hubsMap[centerPath] = centerTitle
@@ -150,8 +160,9 @@ func hasLink(links []LinkRelation, href, rel string) bool {
 	return false
 }
 
-// AllLinks returns all registered link relations grouped by source path.
-// Used for admin/debug inspection.
+// AllLinks returns a snapshot of all registered link relations grouped by
+// source path. The returned map and slices are copies, safe to modify. Useful
+// for admin dashboards or debug pages that inspect the link graph.
 func AllLinks() map[string][]LinkRelation {
 	linksMu.RLock()
 	defer linksMu.RUnlock()
@@ -165,7 +176,8 @@ func AllLinks() map[string][]LinkRelation {
 	return result
 }
 
-// SortedPaths returns all registered source paths in sorted order.
+// SortedPaths returns the keys of a link map in alphabetical order. Pass the
+// result of AllLinks to get a stable iteration order for rendering.
 func SortedPaths(links map[string][]LinkRelation) []string {
 	paths := make([]string, 0, len(links))
 	for k := range links {
@@ -175,8 +187,9 @@ func SortedPaths(links map[string][]LinkRelation) []string {
 	return paths
 }
 
-// Hubs returns all registered hub centers with their spokes, sorted by path.
-// Spokes within each hub are sorted alphabetically by title.
+// Hubs returns all registered hub centers with their spoke links, sorted by
+// center path. Spokes within each hub are sorted alphabetically by title. Use
+// for rendering site maps or navigation trees.
 func Hubs() []HubEntry {
 	hubsMu.RLock()
 	paths := make([]string, 0, len(hubsMap))
@@ -204,8 +217,10 @@ func Hubs() []HubEntry {
 	return entries
 }
 
-// BreadcrumbsFromLinks walks the rel="up" chain from path to build a breadcrumb trail.
-// Returns nil if no rel="up" links are registered for the path.
+// BreadcrumbsFromLinks walks the rel="up" chain from path to build a
+// breadcrumb trail. The trail starts with Home, includes each ancestor found
+// via rel="up" links, and ends with the current page (empty Href). Returns nil
+// if no rel="up" links are registered for the path. Cycle-safe.
 func BreadcrumbsFromLinks(path string) []Breadcrumb {
 	var crumbs []Breadcrumb
 	visited := map[string]bool{}
@@ -240,8 +255,9 @@ func BreadcrumbsFromLinks(path string) []Breadcrumb {
 	return crumbs
 }
 
-// LoadStoredLink adds a single link relation from an external source (e.g., database)
-// into the in-memory registry. Skips duplicates.
+// LoadStoredLink adds a single link relation from an external source (e.g., a
+// database or configuration file) into the in-memory registry. Duplicate links
+// (same source, href, and rel) are silently skipped.
 func LoadStoredLink(source string, r LinkRelation) {
 	linksMu.Lock()
 	defer linksMu.Unlock()
@@ -250,8 +266,9 @@ func LoadStoredLink(source string, r LinkRelation) {
 	}
 }
 
-// RemoveLink removes a link relation matching source, href, and rel from the
-// in-memory registry. Returns true if a link was removed.
+// RemoveLink removes the first link relation matching source, href, and rel
+// from the in-memory registry. Returns true if a link was found and removed,
+// false if no match was found.
 func RemoveLink(source, href, rel string) bool {
 	linksMu.Lock()
 	defer linksMu.Unlock()
@@ -268,7 +285,9 @@ func RemoveLink(source, href, rel string) bool {
 	return false
 }
 
-// ResetForTesting clears the global link registry. Test use only.
+// ResetForTesting clears all entries from the global link and hub registries.
+// Intended for use in test setup/teardown only — not safe to call in production
+// while handlers may be reading the registry.
 func ResetForTesting() {
 	linksMu.Lock()
 	linksMap = make(map[string][]LinkRelation)

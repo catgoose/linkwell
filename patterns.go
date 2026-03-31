@@ -1,13 +1,20 @@
 package linkwell
 
-// ErrorControlOpts carries context for building status-code-specific molecules.
-// Zero values are safe: missing fields omit the corresponding control.
+// ErrorControlOpts carries context for building status-code-specific control
+// sets. Zero values are safe: missing fields cause the corresponding control to
+// be omitted from the result. For example, omitting RetryURL skips the Retry
+// button; omitting HomeURL skips the GoHome button.
 type ErrorControlOpts struct {
-	RetryMethod HxMethod // defaults to HxMethodGet if zero
-	RetryURL    string   // typically c.Request().URL.String()
-	RetryTarget string   // CSS selector for hx-target on retry
-	HomeURL     string   // for GoHome control; typically "/"
-	LoginURL    string   // for Unauthorized; typically "/login"
+	// RetryMethod is the HTTP method for the retry button. Defaults to GET if empty.
+	RetryMethod HxMethod
+	// RetryURL is the request URL to retry (typically the current request URL).
+	RetryURL string
+	// RetryTarget is the CSS selector for hx-target on the retry button.
+	RetryTarget string
+	// HomeURL is the home page URL for the GoHome button (typically "/").
+	HomeURL string
+	// LoginURL is the login page URL for the Log In button (typically "/login").
+	LoginURL string
 }
 
 func resolveRetryMethod(opts ErrorControlOpts) HxMethod {
@@ -17,7 +24,8 @@ func resolveRetryMethod(opts ErrorControlOpts) HxMethod {
 	return opts.RetryMethod
 }
 
-// NotFoundControls returns [Back] and optionally [GoHome] controls for a 404 error.
+// NotFoundControls returns [Back] and optionally [GoHome] controls for a 404
+// response. Pass an empty homeURL to omit the GoHome button.
 func NotFoundControls(homeURL string) []Control {
 	controls := []Control{BackButton(LabelGoBack)}
 	if homeURL != "" {
@@ -26,7 +34,8 @@ func NotFoundControls(homeURL string) []Control {
 	return controls
 }
 
-// ServiceErrorControls returns [Retry?] + [Dismiss] controls for a 503 error.
+// ServiceErrorControls returns [Retry, Dismiss] controls for a 503 response.
+// The Retry button is omitted if opts.RetryURL is empty.
 func ServiceErrorControls(opts ErrorControlOpts) []Control {
 	controls := []Control{}
 	if opts.RetryURL != "" {
@@ -36,7 +45,8 @@ func ServiceErrorControls(opts ErrorControlOpts) []Control {
 	return controls
 }
 
-// UnauthorizedControls returns [Log In?] + [Dismiss] controls for a 401 error.
+// UnauthorizedControls returns [Log In, Dismiss] controls for a 401 response.
+// The Log In button is omitted if loginURL is empty.
 func UnauthorizedControls(loginURL string) []Control {
 	controls := []Control{}
 	if loginURL != "" {
@@ -46,7 +56,7 @@ func UnauthorizedControls(loginURL string) []Control {
 	return controls
 }
 
-// ForbiddenControls returns [Back] + [Dismiss] controls for a 403 error.
+// ForbiddenControls returns [Back, Dismiss] controls for a 403 response.
 func ForbiddenControls() []Control {
 	return []Control{
 		BackButton(LabelGoBack),
@@ -54,7 +64,8 @@ func ForbiddenControls() []Control {
 	}
 }
 
-// InternalErrorControls returns [Retry?] + [Dismiss] controls for a 500 error.
+// InternalErrorControls returns [Retry, Dismiss] controls for a 500 response.
+// The Retry button is omitted if opts.RetryURL is empty.
 func InternalErrorControls(opts ErrorControlOpts) []Control {
 	controls := []Control{}
 	if opts.RetryURL != "" {
@@ -64,8 +75,9 @@ func InternalErrorControls(opts ErrorControlOpts) []Control {
 	return controls
 }
 
-// ErrorControlsForStatus dispatches to the appropriate molecule by HTTP status code.
-// Use in generic middleware or catch-all error handlers.
+// ErrorControlsForStatus dispatches to the appropriate control builder based on
+// HTTP status code. Returns a [Dismiss] control for unrecognized status codes.
+// Use in generic error-handling middleware.
 func ErrorControlsForStatus(statusCode int, opts ErrorControlOpts) []Control {
 	switch statusCode {
 	case 404:
@@ -83,56 +95,66 @@ func ErrorControlsForStatus(statusCode int, opts ErrorControlOpts) []Control {
 	}
 }
 
-// RowActionCfg configures Edit + Delete controls for a table row.
+// RowActionCfg configures Edit + Delete controls for a table row. Both the Edit
+// and Delete actions target the same row element (RowTarget) with outerHTML swap.
 type RowActionCfg struct {
-	EditURL     string
-	DeleteURL   string
-	RowTarget   string
-	ConfirmMsg  string
-	ErrorTarget string
+	EditURL     string // GET URL to fetch the edit form for this row.
+	DeleteURL   string // DELETE URL to remove this row.
+	RowTarget   string // CSS selector for the row element (e.g., "#row-42").
+	ConfirmMsg  string // hx-confirm message for the delete action.
+	ErrorTarget string // CSS selector for inline error display.
 }
 
-// TableRowActionCfg configures Edit (swap row) + Delete (replace table) controls.
+// TableRowActionCfg configures Edit + Delete controls where Edit swaps the
+// individual row (RowTarget) and Delete replaces the entire table
+// (TableTarget). Use when deleting a row requires re-rendering the full table
+// (e.g., to update row numbers or totals).
 type TableRowActionCfg struct {
-	EditURL     string
-	DeleteURL   string
-	RowTarget   string
-	TableTarget string
-	ConfirmMsg  string
-	ErrorTarget string
+	EditURL     string // GET URL to fetch the edit form for this row.
+	DeleteURL   string // DELETE URL to remove this row.
+	RowTarget   string // CSS selector for the row element.
+	TableTarget string // CSS selector for the table container.
+	ConfirmMsg  string // hx-confirm message for the delete action.
+	ErrorTarget string // CSS selector for inline error display.
 }
 
-// RowFormActionCfg configures Save + Cancel controls for inline edit rows.
+// RowFormActionCfg configures Save + Cancel controls for inline table row
+// editing. RowFormActions uses PUT for existing rows; NewRowFormActions uses
+// POST for new rows.
 type RowFormActionCfg struct {
-	SaveURL      string
-	CancelURL    string
-	SaveTarget   string
-	CancelTarget string
-	ErrorTarget  string
+	SaveURL      string // PUT or POST URL for saving the row.
+	CancelURL    string // GET URL to restore the display row.
+	SaveTarget   string // CSS selector for the save response target.
+	CancelTarget string // CSS selector for the cancel response target.
+	ErrorTarget  string // CSS selector for inline error display.
 }
 
-// ResourceActionCfg configures Edit + Delete controls for resource detail pages.
+// ResourceActionCfg configures Edit + Delete controls for resource detail
+// pages (as opposed to table rows). Both actions target the same content area.
 type ResourceActionCfg struct {
-	EditURL     string
-	DeleteURL   string
-	ConfirmMsg  string
-	Target      string
-	ErrorTarget string
+	EditURL     string // GET URL to fetch the edit form.
+	DeleteURL   string // DELETE URL to remove the resource.
+	ConfirmMsg  string // hx-confirm message for the delete action.
+	Target      string // CSS selector for the content area.
+	ErrorTarget string // CSS selector for inline error display.
 }
 
-// BulkActionCfg configures batch operation controls for checkbox-selected rows.
+// BulkActionCfg configures toolbar controls for batch operations on
+// checkbox-selected table rows. Each URL is optional — omit to hide that
+// action. The CheckboxSelector is the CSS selector for row checkboxes included
+// via hx-include.
 type BulkActionCfg struct {
-	DeleteURL        string
-	ActivateURL      string
-	DeactivateURL    string
-	TableTarget      string
-	CheckboxSelector string
-	ErrorTarget      string
+	DeleteURL        string // DELETE URL for bulk deletion.
+	ActivateURL      string // PUT URL for bulk activation.
+	DeactivateURL    string // PUT URL for bulk deactivation.
+	TableTarget      string // CSS selector for the table to replace after the operation.
+	CheckboxSelector string // CSS selector for row checkboxes (e.g., ".user-checkbox").
+	ErrorTarget      string // CSS selector for inline error display.
 }
 
 // ResourceActions returns Edit + Delete controls for resource detail pages.
-// Controls are conditionally included: omit EditURL to hide Edit, omit DeleteURL
-// to hide Delete. Returns an empty slice if both are empty.
+// Controls are conditionally included: omit EditURL to hide Edit, omit
+// DeleteURL to hide Delete. Returns an empty slice if both URLs are empty.
 func ResourceActions(cfg ResourceActionCfg) []Control {
 	controls := []Control{}
 	if cfg.EditURL != "" {
@@ -154,9 +176,10 @@ func ResourceActions(cfg ResourceActionCfg) []Control {
 	return controls
 }
 
-// FormActions returns [Save (primary)] + [Cancel (ghost)] controls for form footers.
-// The Save button uses hx-include="closest form"; the parent form must carry the
-// hx-post or hx-put attribute that drives the submission.
+// FormActions returns [Save, Cancel] controls for form footers. The Save button
+// uses hx-include="closest form" to submit the form data; the parent form
+// element must carry the hx-post or hx-put attribute that drives submission.
+// The Cancel button is a plain link to cancelHref.
 func FormActions(cancelHref string) []Control {
 	return []Control{
 		{
@@ -176,9 +199,9 @@ func FormActions(cancelHref string) []Control {
 	}
 }
 
-// RowActions returns Edit + Delete controls for a table row.
-// Controls are conditionally included: omit EditURL to hide Edit, omit DeleteURL
-// to hide Delete. Returns an empty slice if both are empty.
+// RowActions returns Edit + Delete controls for a table row where both actions
+// swap the same row target with outerHTML. Controls are conditionally included:
+// omit EditURL to hide Edit, omit DeleteURL to hide Delete.
 func RowActions(cfg RowActionCfg) []Control {
 	controls := []Control{}
 	if cfg.EditURL != "" {
@@ -206,9 +229,9 @@ func RowActions(cfg RowActionCfg) []Control {
 	return controls
 }
 
-// TableRowActions returns Edit (swap row outerHTML) + Delete (replace tableTarget outerHTML).
-// Controls are conditionally included: omit EditURL to hide Edit, omit DeleteURL
-// to hide Delete. Returns an empty slice if both are empty.
+// TableRowActions returns Edit + Delete controls where Edit swaps the row and
+// Delete replaces the entire table container. Controls are conditionally
+// included: omit EditURL to hide Edit, omit DeleteURL to hide Delete.
 func TableRowActions(cfg TableRowActionCfg) []Control {
 	controls := []Control{}
 	if cfg.EditURL != "" {
@@ -236,9 +259,10 @@ func TableRowActions(cfg TableRowActionCfg) []Control {
 	return controls
 }
 
-// RowFormActions returns Save (hx-put) + Cancel controls for an inline edit row.
-// Controls are conditionally included: omit SaveURL to hide Save, omit CancelURL
-// to hide Cancel. Returns an empty slice if both are empty.
+// RowFormActions returns Save + Cancel controls for an inline edit row. Save
+// uses hx-put with hx-include="closest tr" to submit the row's form fields.
+// Controls are conditionally included: omit SaveURL to hide Save, omit
+// CancelURL to hide Cancel.
 func RowFormActions(cfg RowFormActionCfg) []Control {
 	controls := []Control{}
 	if cfg.SaveURL != "" {
@@ -266,9 +290,10 @@ func RowFormActions(cfg RowFormActionCfg) []Control {
 	return controls
 }
 
-// NewRowFormActions returns Save (hx-post) + Cancel controls for a new-item inline form row.
-// Controls are conditionally included: omit SaveURL to hide Save, omit CancelURL
-// to hide Cancel. Returns an empty slice if both are empty.
+// NewRowFormActions returns Save + Cancel controls for a new-item inline form
+// row. Save uses hx-post (instead of hx-put) with hx-include="closest tr".
+// Controls are conditionally included: omit SaveURL to hide Save, omit
+// CancelURL to hide Cancel.
 func NewRowFormActions(cfg RowFormActionCfg) []Control {
 	controls := []Control{}
 	if cfg.SaveURL != "" {
@@ -296,7 +321,8 @@ func NewRowFormActions(cfg RowFormActionCfg) []Control {
 	return controls
 }
 
-// EmptyStateAction returns a single primary CTA for empty list states.
+// EmptyStateAction returns a single primary call-to-action control for empty
+// list states (e.g., "Create First User" when a table has no rows).
 func EmptyStateAction(label, createURL, target string) Control {
 	return Control{
 		Kind:      ControlKindHTMX,
@@ -306,8 +332,9 @@ func EmptyStateAction(label, createURL, target string) Control {
 	}
 }
 
-// CatalogRowAction returns a Details button that fills the adjacent placeholder row via innerHTML.
-// detailRowTarget is the CSS selector for the placeholder <tr>, e.g. "#detail-row-42".
+// CatalogRowAction returns a ghost-variant Details button that fills an
+// adjacent placeholder row via innerHTML swap. Use for catalog/listing views
+// where clicking a row loads detail content into an expandable area below it.
 func CatalogRowAction(detailURL, detailRowTarget string) Control {
 	return Control{
 		Kind:      ControlKindHTMX,
@@ -318,9 +345,9 @@ func CatalogRowAction(detailURL, detailRowTarget string) Control {
 	}
 }
 
-// BulkActions returns toolbar controls for batch operations on checkbox-selected rows.
-// Controls are conditionally included: omit DeleteURL, ActivateURL, or DeactivateURL
-// to hide the corresponding control. Returns an empty slice if all are empty.
+// BulkActions returns toolbar controls for batch operations on
+// checkbox-selected rows. Controls are conditionally included: omit DeleteURL,
+// ActivateURL, or DeactivateURL to hide the corresponding action.
 func BulkActions(cfg BulkActionCfg) []Control {
 	controls := []Control{}
 	if cfg.DeleteURL != "" {

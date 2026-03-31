@@ -10,40 +10,63 @@ import (
 	"github.com/a-h/templ"
 )
 
-// NavConfig holds the app-controlled parts of the nav layout.
-// Zero values are safe: no promoted item, all items visible, no custom slots.
+// NavConfig holds the app-controlled parts of the navigation layout. Zero
+// values are safe defaults: no promoted item, all items visible, no custom
+// brand or topbar slots.
 type NavConfig struct {
-	Items      []NavItem       // Navigation items
-	Promoted   *NavItem        // Optional promoted FAB item (mobile)
-	MaxVisible int             // Items visible before overflow (0 = show all)
-	AppName    string          // Brand text
-	Brand      templ.Component // Custom brand slot (replaces default appName text)
-	Topbar     templ.Component // Custom mobile topbar content (replaces default)
+	// Items is the ordered list of navigation entries.
+	Items []NavItem
+	// Promoted is an optional floating action button item shown on mobile.
+	Promoted *NavItem
+	// MaxVisible limits how many items are shown before overflowing into a
+	// "more" menu. Zero means show all items.
+	MaxVisible int
+	// AppName is plain text displayed in the brand area of the navigation bar.
+	AppName string
+	// Brand is an optional templ component that replaces the default AppName
+	// text in the brand slot. Set to nil to use the plain text AppName.
+	Brand templ.Component
+	// Topbar is an optional templ component that replaces the default mobile
+	// topbar content. Set to nil to use the default layout.
+	Topbar templ.Component
 }
 
-// NavItem is a server-computed navigation affordance.
-// Active state is set by the handler (or SetActiveNavItem), not by JavaScript.
+// NavItem is a server-computed navigation entry. Active state is determined by
+// the handler (via SetActiveNavItem or SetActiveNavItemPrefix), not by
+// client-side JavaScript. Items may have children for dropdown/flyout menus.
 type NavItem struct {
+	// HTMXAttrs holds optional HTMX attributes (e.g., from HxRequestConfig.Attrs())
+	// for items that trigger HTMX requests instead of full navigation.
 	HTMXAttrs map[string]string
-	Label     string
-	Href      string
-	Icon      string
-	Children  []NavItem
-	Active    bool
+	// Label is the user-visible text for this navigation entry.
+	Label string
+	// Href is the navigation target URL.
+	Href string
+	// Icon is the icon name rendered alongside the label.
+	Icon string
+	// Children are nested sub-items for dropdown menus.
+	Children []NavItem
+	// Active indicates this item matches the current page. Set by SetActiveNavItem
+	// or SetActiveNavItemPrefix, or manually by the handler.
+	Active bool
 }
 
-// Breadcrumb is one segment of a breadcrumb trail.
-// Href empty means this is the current page (rendered as text, not an anchor).
+// Breadcrumb is one segment of a breadcrumb trail. When Href is empty, the
+// segment represents the current page and should be rendered as plain text
+// rather than a clickable link.
 type Breadcrumb struct {
+	// Label is the display text for this breadcrumb segment.
 	Label string
-	Href  string
+	// Href is the navigation target. Empty for the terminal (current page) segment.
+	Href string
 }
 
 // BreadcrumbLabelHome is the default label for the root breadcrumb segment.
 const BreadcrumbLabelHome = "Home"
 
-// SetActiveNavItem performs exact-match active state setting.
-// A parent item is marked active if any of its children match.
+// SetActiveNavItem sets the Active flag on nav items using exact path matching.
+// A parent item is also marked active if any of its children match. Returns a
+// new slice; the input is not modified.
 func SetActiveNavItem(items []NavItem, currentPath string) []NavItem {
 	result := make([]NavItem, len(items))
 	for i, item := range items {
@@ -61,9 +84,11 @@ func SetActiveNavItem(items []NavItem, currentPath string) []NavItem {
 	return result
 }
 
-// SetActiveNavItemPrefix performs longest-prefix match active state setting.
-// Use for section-level nav: /users is active when path is /users/42/edit.
-// A parent item is marked active if any of its children match.
+// SetActiveNavItemPrefix sets the Active flag using longest-prefix matching.
+// An item is active if the current path equals its Href or starts with Href
+// followed by "/". Use for section-level navigation where /users should be
+// active when the path is /users/42/edit. A parent is marked active if any
+// child matches. Returns a new slice; the input is not modified.
 func SetActiveNavItemPrefix(items []NavItem, currentPath string) []NavItem {
 	result := make([]NavItem, len(items))
 	for i, item := range items {
@@ -84,7 +109,9 @@ func SetActiveNavItemPrefix(items []NavItem, currentPath string) []NavItem {
 	return result
 }
 
-// NavItemFromControl bridges a Control to a NavItem (Label, Href, Icon, HTMXAttrs).
+// NavItemFromControl converts a Control into a NavItem, mapping Label, Href,
+// Icon, and HxRequest attributes. Useful when a control needs to appear in the
+// navigation bar.
 func NavItemFromControl(ctrl Control) NavItem {
 	return NavItem{
 		Label:     ctrl.Label,
@@ -94,9 +121,11 @@ func NavItemFromControl(ctrl Control) NavItem {
 	}
 }
 
-// BreadcrumbsFromPath generates crumbs from a URL path.
-// labels overrides auto-generated labels by segment index (0-based, not counting the Home crumb).
-// The terminal segment always has an empty Href (rendered as plain text).
+// BreadcrumbsFromPath generates a breadcrumb trail from a URL path by splitting
+// on "/" and title-casing each segment. The labels map overrides auto-generated
+// labels by segment index (0-based, not counting the Home crumb) — use this to
+// replace opaque IDs with human-readable names. The terminal segment always has
+// an empty Href (rendered as text, not a link).
 func BreadcrumbsFromPath(path string, labels map[int]string) []Breadcrumb {
 	trimmed := strings.Trim(path, "/")
 	if trimmed == "" {
@@ -119,12 +148,15 @@ func BreadcrumbsFromPath(path string, labels map[int]string) []Breadcrumb {
 	return crumbs
 }
 
-// FromBit is a bitmask position for a registered breadcrumb origin.
-// Lower bits render earlier in the trail. Bit 0 is reserved for Home.
+// FromBit is a bitmask position for a registered breadcrumb origin. Lower bits
+// render earlier in the trail. Bit 0 is reserved for Home and is always
+// included. Use RegisterFrom to associate a Breadcrumb with a bit position,
+// then pass a bitmask via the ?from= query parameter to reconstruct the trail.
 type FromBit = uint64
 
 // Well-known breadcrumb bit positions. Bit 0 (Home) is always included.
-// Register additional bits via RegisterFrom.
+// Register additional bits via RegisterFrom. Bits 2-7 are available for
+// application-specific origins.
 const (
 	FromHome      FromBit = 1 << iota // bit 0 — always shown
 	FromDashboard                     // bit 1
@@ -152,8 +184,9 @@ func init() {
 	RegisterFrom(FromHome, Breadcrumb{Label: BreadcrumbLabelHome, Href: "/"})
 }
 
-// RegisterFrom registers a breadcrumb at the given bit position.
-// Call during route initialization. Bit 0 is pre-registered as Home.
+// RegisterFrom registers a breadcrumb at the given bit position. Call during
+// route initialization. Bit 0 is pre-registered as Home. If the bit is already
+// registered, the previous entry is replaced.
 func RegisterFrom(bit FromBit, crumb Breadcrumb) {
 	fromMu.Lock()
 	// Replace if bit already registered.
@@ -171,9 +204,11 @@ func RegisterFrom(bit FromBit, crumb Breadcrumb) {
 	fromMu.Unlock()
 }
 
-// ResolveFromMask decodes a bitmask into an ordered breadcrumb trail.
-// Only registered bits are included. Unregistered bits are silently ignored.
-// Home (bit 0) is always included regardless of the mask value.
+// ResolveFromMask decodes a bitmask into an ordered breadcrumb trail by
+// checking each registered bit position. Only registered bits are included;
+// unregistered bits are silently ignored. Home (bit 0) is always included
+// regardless of the mask value. Entries are ordered by bit position (lowest
+// first).
 func ResolveFromMask(mask uint64) []Breadcrumb {
 	mask |= FromHome // always include Home
 	fromMu.RLock()
@@ -188,8 +223,8 @@ func ResolveFromMask(mask uint64) []Breadcrumb {
 	return crumbs
 }
 
-// ParseFromParam parses the ?from= query parameter as a uint64 bitmask.
-// Returns 0 if empty or invalid.
+// ParseFromParam parses the ?from= query parameter string as a uint64 bitmask.
+// Returns 0 if the input is empty or not a valid unsigned integer.
 func ParseFromParam(raw string) uint64 {
 	if raw == "" {
 		return 0
@@ -198,13 +233,14 @@ func ParseFromParam(raw string) uint64 {
 	return v
 }
 
-// FromParam formats a bitmask as a string suitable for ?from= query values.
+// FromParam formats a bitmask as a decimal string suitable for ?from= query
+// parameter values.
 func FromParam(mask uint64) string {
 	return strconv.FormatUint(mask, 10)
 }
 
-// FromQueryString returns "from=N" for use in URL query strings.
-// Returns empty string if mask is 0.
+// FromQueryString returns "from=N" formatted for inclusion in URL query
+// strings. Returns an empty string if mask is 0 (no origin context).
 func FromQueryString(mask uint64) string {
 	if mask == 0 {
 		return ""
@@ -212,8 +248,9 @@ func FromQueryString(mask uint64) string {
 	return fmt.Sprintf("from=%s", FromParam(mask))
 }
 
-// FromNav appends the from parameter to a href if non-empty.
-// Use in templates to forward breadcrumb context to outbound links.
+// FromNav appends the ?from= parameter to a href, preserving any existing
+// query string. Returns href unchanged if from is empty. Use in templates to
+// forward breadcrumb context to outbound links.
 func FromNav(href, from string) string {
 	if from == "" {
 		return href
