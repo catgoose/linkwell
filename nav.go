@@ -1,14 +1,22 @@
 package linkwell
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
-
-	"github.com/a-h/templ"
 )
+
+// Renderable is a minimal rendering interface satisfied by templ.Component and
+// any type that can render itself to an io.Writer. Using this interface instead
+// of templ.Component directly allows consumers that don't use templ to avoid
+// pulling in the templ module.
+type Renderable interface {
+	Render(ctx context.Context, w io.Writer) error
+}
 
 // NavConfig holds the app-controlled parts of the navigation layout. Zero
 // values are safe defaults: no promoted item, all items visible, no custom
@@ -23,12 +31,14 @@ type NavConfig struct {
 	MaxVisible int
 	// AppName is plain text displayed in the brand area of the navigation bar.
 	AppName string
-	// Brand is an optional templ component that replaces the default AppName
-	// text in the brand slot. Set to nil to use the plain text AppName.
-	Brand templ.Component
-	// Topbar is an optional templ component that replaces the default mobile
-	// topbar content. Set to nil to use the default layout.
-	Topbar templ.Component
+	// Brand is an optional component that replaces the default AppName text in
+	// the brand slot. Any templ.Component satisfies Renderable. Set to nil to
+	// use the plain text AppName.
+	Brand Renderable
+	// Topbar is an optional component that replaces the default mobile topbar
+	// content. Any templ.Component satisfies Renderable. Set to nil to use the
+	// default layout.
+	Topbar Renderable
 }
 
 // NavItem is a server-computed navigation entry. Active state is determined by
@@ -174,6 +184,9 @@ type fromEntry struct {
 	crumb Breadcrumb
 }
 
+// Protected by fromMu. RegisterFrom and ResolveFromMask are safe for
+// concurrent use. Registration is expected at init time; reads happen at
+// request time.
 var (
 	fromMu      sync.RWMutex
 	fromEntries []fromEntry

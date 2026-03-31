@@ -6,8 +6,19 @@ import (
 	"sync"
 )
 
-// linkRegistry stores registered link relations keyed by source path.
-// Protected by linksMu for concurrent access.
+// Thread safety
+//
+// All registry operations (Link, Ring, Hub, LinksFor, AllLinks, Hubs,
+// LoadStoredLink, RemoveLink) are protected by sync.RWMutex and are safe for
+// concurrent use. The typical usage pattern is init-time registration: call
+// Link, Ring, and Hub during route setup (before the server starts accepting
+// requests), then read with LinksFor, AllLinks, Hubs, etc. at request time.
+// Concurrent registration from multiple goroutines is supported but unusual.
+//
+// ResetForTesting clears the registries and is intended for test
+// setup/teardown only. It must not be called concurrently with request
+// handlers. In parallel tests, use t.Cleanup(ResetForTesting) within each
+// subtest to avoid cross-test pollution.
 var (
 	linksMu  sync.RWMutex
 	linksMap = make(map[string][]LinkRelation)
@@ -176,9 +187,8 @@ func AllLinks() map[string][]LinkRelation {
 	return result
 }
 
-// SortedPaths returns the keys of a link map in alphabetical order. Pass the
-// result of AllLinks to get a stable iteration order for rendering.
-func SortedPaths(links map[string][]LinkRelation) []string {
+// sortedPaths returns the keys of a link map in alphabetical order.
+func sortedPaths(links map[string][]LinkRelation) []string {
 	paths := make([]string, 0, len(links))
 	for k := range links {
 		paths = append(paths, k)
@@ -287,7 +297,9 @@ func RemoveLink(source, href, rel string) bool {
 
 // ResetForTesting clears all entries from the global link and hub registries.
 // Intended for use in test setup/teardown only — not safe to call in production
-// while handlers may be reading the registry.
+// while handlers may be reading the registry. In parallel tests, call
+// ResetForTesting at the start of each subtest and register it with t.Cleanup
+// to avoid cross-test pollution.
 func ResetForTesting() {
 	linksMu.Lock()
 	linksMap = make(map[string][]LinkRelation)
