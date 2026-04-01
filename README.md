@@ -7,7 +7,7 @@
 
 > WHERE ARE THE LINKS, KEVIN?
 >
-> -- The PENTAVERB, Dothog Manifesto
+> -- The PENTAVERB
 
 A Go library for HATEOAS-style hypermedia controls, link relations ([RFC 8288](https://www.rfc-editor.org/rfc/rfc8288)), and navigation primitives. Designed for server-rendered HTML apps using HTMX, but the data types are framework-agnostic.
 
@@ -116,7 +116,7 @@ import hypermedia "github.com/catgoose/linkwell"
 
 > The server sends a representation. The representation contains links and forms. The client follows them. THAT IS THE ENTIRE INTERACTION MODEL.
 >
-> -- The Wisdom of the Uniform Interface, Dothog Manifesto
+> -- The Wisdom of the Uniform Interface
 
 The link registry maintains an in-memory graph of relationships between pages. Register links at startup (typically in route initialization), then query them at request time.
 
@@ -213,7 +213,7 @@ linkwell.RemoveLink("/projects/42", "/teams/7", "related")
 
 > The links are RIGHT THERE. In the HTML. They have been there this whole time.
 >
-> -- The Wisdom of the Uniform Interface, Dothog Manifesto
+> -- The Wisdom of the Uniform Interface
 
 ### From Link Graph
 
@@ -263,7 +263,7 @@ href := linkwell.FromNav("/users/42", c.QueryParam("from"))
 
 > Hypertext is the simultaneous presentation of information and controls such that the information BECOMES THE AFFORDANCE through which choices are obtained and actions are selected.
 >
-> -- The Wisdom of the Uniform Interface, Dothog Manifesto
+> -- The Wisdom of the Uniform Interface
 
 A `Control` is a pure-data descriptor for a hypermedia affordance (button, link, action). Templates consume controls to render the appropriate HTML element -- the control itself has no rendering logic.
 
