@@ -3,6 +3,8 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/catgoose/linkwell.svg)](https://pkg.go.dev/github.com/catgoose/linkwell)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+![linkwell](https://raw.githubusercontent.com/catgoose/screenshots/main/linkwell/linkwell.png)
+
 A Go library for HATEOAS-style hypermedia controls, link relations ([RFC 8288](https://www.rfc-editor.org/rfc/rfc8288)), and navigation primitives. Designed for server-rendered HTML apps using HTMX, but the data types are framework-agnostic.
 
 linkwell provides:
