@@ -504,6 +504,12 @@ Report issue modal shortcut:
 modal := linkwell.ReportIssueModal(requestID)
 ```
 
+> HATEOAS: Hypermedia As The Engine Of Application State. Yes, it is an ugly acronym. The truth is not always beautiful. Sometimes the truth is an ugly acronym that you should have tattooed on the inside of your eyelids.
+>
+> -- The Wisdom of the Uniform Interface
+
+Action patterns are HATEOAS made concrete — the server decides what actions are available, and the controls carry that decision to the template.
+
 ## Action Patterns
 
 Pre-built control sets for common CRUD and data-management patterns. All pattern functions conditionally include controls based on which URLs are provided — omit a URL to hide that action.
@@ -633,6 +639,12 @@ ec = ec.WithOOB("#error-status", "innerHTML")
 return linkwell.NewHTTPError(ec)
 ```
 
+> Enter the application with a single URI and a set of standardized media types. Follow the links. Submit the forms. Let the server drive the state. That is all.
+>
+> -- The Wisdom of the Uniform Interface
+
+That is linkwell's entire design: declare links once, query them at request time, and let the link graph drive navigation.
+
 ## Thread Safety
 
 All registry operations (`Link`, `Ring`, `Hub`, `LinksFor`, `AllLinks`, `Hubs`,
@@ -662,6 +674,14 @@ func TestMyHandler(t *testing.T) {
     // ... test logic
 }
 ```
+
+## Philosophy
+
+Linkwell follows the [dothog design philosophy](https://github.com/catgoose/dothog/blob/main/PHILOSOPHY.md): the server is the source of truth for navigation, the link registry is just a data structure, and templates consume pure data — no rendering logic in the library.
+
+> THE FOOL deleted the route constants. THE FOOL deleted the URL builder. THE FOOL wrote an `<a>` tag. The browser followed it. It worked. It had always worked.
+>
+> -- The Dothog Manifesto
 
 ## License
 
