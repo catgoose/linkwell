@@ -7,6 +7,49 @@
 
 A Go library for HATEOAS-style hypermedia controls, link relations ([RFC 8288](https://www.rfc-editor.org/rfc/rfc8288)), and navigation primitives. Designed for server-rendered HTML apps using HTMX, but the data types are framework-agnostic.
 
+## Why
+
+**Without linkwell:**
+
+```go
+// Hardcoded nav, scattered across handlers
+type NavItem struct{ Label, Href string; Active bool }
+nav := []NavItem{
+    {"Users", "/admin/users", path == "/admin/users"},
+    {"Roles", "/admin/roles", path == "/admin/roles"},
+    {"Settings", "/admin/settings", path == "/admin/settings"},
+}
+
+// Breadcrumbs built by hand, per handler
+crumbs := []Breadcrumb{
+    {Label: "Home", Href: "/"},
+    {Label: "Admin", Href: "/admin"},
+    {Label: "Users", Href: ""},
+}
+
+// Pagination, filters, sort columns, modals, error controls --
+// all custom structs, repeated in every project.
+```
+
+**With linkwell:**
+
+```go
+// Register once at startup
+linkwell.Hub("/admin", "Admin",
+    linkwell.Rel("/admin/users", "Users"),
+    linkwell.Rel("/admin/roles", "Roles"),
+    linkwell.Rel("/admin/settings", "Settings"),
+)
+
+// At request time
+crumbs := linkwell.BreadcrumbsFromLinks("/admin/users")
+related := linkwell.RelatedLinksFor("/admin/users")
+controls := linkwell.ResourceActions(linkwell.ResourceActionCfg{
+    EditURL: "/admin/users/42/edit", DeleteURL: "/admin/users/42",
+    Target: "#content", ConfirmMsg: "Delete this user?",
+})
+```
+
 linkwell provides:
 
 - A **link registry** for declaring relationships between pages (related, parent/child, hub-and-spoke)
