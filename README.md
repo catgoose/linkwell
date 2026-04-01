@@ -683,6 +683,53 @@ Linkwell follows the [dothog design philosophy](https://github.com/catgoose/doth
 >
 > -- The Dothog Manifesto
 
+## Architecture
+
+### How linkwell drives navigation
+
+```
+  startup                          request time
+  ───────                          ────────────
+
+  Hub("/admin", "Admin",           links := LinksFor("/admin/users")
+    Rel("/admin/users", ...),      crumbs := BreadcrumbsFromLinks(path)
+    Rel("/admin/roles", ...),      controls := ResourceActions(cfg)
+  )                                         │
+       │                                    v
+       v                              ┌───────────┐
+  ┌──────────┐                        │  template  │
+  │ registry │ ◄── query at ──────►   │  renders   │
+  │ (links)  │     request time       │  controls  │
+  └──────────┘                        └───────────┘
+```
+
+### Where linkwell fits in the dothog ecosystem
+
+```
+                        ┌──────────────────────────────────────┐
+                        │              dothog app              │
+                        └──────────┬───────────────────────────┘
+                                   │
+          ┌────────────┬───────────┼───────────┬────────────┐
+          │            │           │           │            │
+     ┌────v────┐  ┌────v────┐ ┌───v────┐  ┌───v────┐  ┌───v─────┐
+     │ crooner │  │ porter  │ │fraggle │  │ tavern │  │promolog │
+     │  auth   │  │  authz  │ │  sql   │  │  sse   │  │  logs   │
+     └─────────┘  └─────────┘ └────────┘  └────────┘  └─────────┘
+          │            │           │           │            │
+          └────────────┴───────────┴─────┬─────┴────────────┘
+                                         │
+                                    ┌────v─────┐
+                                    │*linkwell*│  links, breadcrumbs,
+                                    │ controls │  navigation, filters
+                                    └──────────┘
+```
+
+Linkwell is a cross-cutting concern — it provides the hypermedia controls and
+navigation primitives that templates consume. Handlers from any layer can
+register links and query the registry to build breadcrumbs, related links,
+action buttons, and pagination controls.
+
 ## License
 
 MIT
