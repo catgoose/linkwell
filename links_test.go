@@ -441,6 +441,149 @@ func TestBreadcrumbsFromLinks_IncludesHomeAndCurrent(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// BreadcrumbsFromLinks — path walk-up (#13)
+// ---------------------------------------------------------------------------
+
+func TestBreadcrumbsFromLinks_WalkUpOneSegment(t *testing.T) {
+	resetLinks(t)
+
+	Hub("/admin", "Admin",
+		Rel("/admin/groups", "Groups"),
+	)
+
+	crumbs := BreadcrumbsFromLinks("/admin/groups/new")
+	require.NotNil(t, crumbs)
+	// [Home, Admin, Groups, New]
+	require.Len(t, crumbs, 4)
+	assert.Equal(t, BreadcrumbLabelHome, crumbs[0].Label)
+	assert.Equal(t, "/", crumbs[0].Href)
+	assert.Equal(t, "Admin", crumbs[1].Label)
+	assert.Equal(t, "/admin", crumbs[1].Href)
+	assert.Equal(t, "Groups", crumbs[2].Label)
+	assert.Equal(t, "/admin/groups", crumbs[2].Href)
+	assert.Equal(t, "New", crumbs[3].Label)
+	assert.Empty(t, crumbs[3].Href, "terminal segment should have no href")
+}
+
+func TestBreadcrumbsFromLinks_WalkUpNumericSegment(t *testing.T) {
+	resetLinks(t)
+
+	Hub("/admin", "Admin",
+		Rel("/admin/groups", "Groups"),
+	)
+
+	crumbs := BreadcrumbsFromLinks("/admin/groups/1")
+	require.NotNil(t, crumbs)
+	// [Home, Admin, Groups, 1]
+	require.Len(t, crumbs, 4)
+	assert.Equal(t, "Groups", crumbs[2].Label)
+	assert.Equal(t, "/admin/groups", crumbs[2].Href)
+	assert.Equal(t, "1", crumbs[3].Label)
+	assert.Empty(t, crumbs[3].Href)
+}
+
+func TestBreadcrumbsFromLinks_WalkUpMultipleSegments(t *testing.T) {
+	resetLinks(t)
+
+	Hub("/admin", "Admin",
+		Rel("/admin/groups", "Groups"),
+	)
+
+	crumbs := BreadcrumbsFromLinks("/admin/groups/1/edit")
+	require.NotNil(t, crumbs)
+	// [Home, Admin, Groups, 1, Edit]
+	require.Len(t, crumbs, 5)
+	assert.Equal(t, "Groups", crumbs[2].Label)
+	assert.Equal(t, "/admin/groups", crumbs[2].Href)
+	assert.Equal(t, "1", crumbs[3].Label)
+	assert.Equal(t, "/admin/groups/1", crumbs[3].Href)
+	assert.Equal(t, "Edit", crumbs[4].Label)
+	assert.Empty(t, crumbs[4].Href)
+}
+
+func TestBreadcrumbsFromLinks_WalkUpNoAncestorReturnsNil(t *testing.T) {
+	resetLinks(t)
+
+	crumbs := BreadcrumbsFromLinks("/totally/unknown/path")
+	assert.Nil(t, crumbs)
+}
+
+// ---------------------------------------------------------------------------
+// ResolveFromMaskWithPath (#14)
+// ---------------------------------------------------------------------------
+
+func TestResolveFromMaskWithPath_CombinesMaskAndPath(t *testing.T) {
+	resetLinks(t)
+
+	RegisterFrom(FromDashboard, Breadcrumb{Label: "Dashboard", Href: "/dashboard"})
+	Hub("/admin", "Admin",
+		Rel("/admin/groups", "Groups"),
+	)
+
+	crumbs := ResolveFromMaskWithPath(FromHome|FromDashboard, "/admin/groups", "3")
+	require.NotNil(t, crumbs)
+	// Mask crumbs: [Home, Dashboard]
+	// Path crumbs: [Home, Admin, Groups] — Home is deduplicated
+	// Result: [Home, Dashboard, Admin, Groups]
+	require.Len(t, crumbs, 4)
+	assert.Equal(t, "Home", crumbs[0].Label)
+	assert.Equal(t, "Dashboard", crumbs[1].Label)
+	assert.Equal(t, "Admin", crumbs[2].Label)
+	assert.Contains(t, crumbs[2].Href, "from=3", "intermediate crumbs should have from param")
+	assert.Equal(t, "Groups", crumbs[3].Label)
+	assert.Empty(t, crumbs[3].Href, "terminal crumb should have no href")
+}
+
+func TestResolveFromMaskWithPath_DeduplicatesByBasePath(t *testing.T) {
+	resetLinks(t)
+
+	RegisterFrom(FromDashboard, Breadcrumb{Label: "Dashboard", Href: "/dashboard?tab=overview"})
+	Hub("/dashboard", "Dashboard",
+		Rel("/dashboard/settings", "Settings"),
+	)
+
+	crumbs := ResolveFromMaskWithPath(FromHome|FromDashboard, "/dashboard/settings", "")
+	// Mask: [Home, Dashboard (with query)]
+	// Path: [Home, Dashboard, Settings] — Home and Dashboard deduplicated by base path
+	// Result: [Home, Dashboard (with query), Settings]
+	require.Len(t, crumbs, 3)
+	assert.Equal(t, "Home", crumbs[0].Label)
+	assert.Equal(t, "Dashboard", crumbs[1].Label)
+	assert.Equal(t, "/dashboard?tab=overview", crumbs[1].Href, "mask crumb should keep its query params")
+	assert.Equal(t, "Settings", crumbs[2].Label)
+}
+
+func TestResolveFromMaskWithPath_FallsBackToPathBreadcrumbs(t *testing.T) {
+	resetLinks(t)
+
+	// No links registered — should fall back to BreadcrumbsFromPath
+	crumbs := ResolveFromMaskWithPath(FromHome, "/users/42/edit", "")
+	require.NotNil(t, crumbs)
+	// Mask: [Home]
+	// Fallback path: [Home, users, 42, edit] — Home deduplicated
+	require.Len(t, crumbs, 4)
+	assert.Equal(t, "Home", crumbs[0].Label)
+	assert.Equal(t, "users", crumbs[1].Label)
+	assert.Equal(t, "42", crumbs[2].Label)
+	assert.Equal(t, "edit", crumbs[3].Label)
+}
+
+func TestResolveFromMaskWithPath_NoFromParam(t *testing.T) {
+	resetLinks(t)
+
+	Hub("/admin", "Admin",
+		Rel("/admin/groups", "Groups"),
+	)
+
+	crumbs := ResolveFromMaskWithPath(FromHome, "/admin/groups", "")
+	require.NotNil(t, crumbs)
+	// Should not contain from= in any href
+	for _, c := range crumbs {
+		assert.NotContains(t, c.Href, "from=", "no from param should be appended when from is empty")
+	}
+}
+
+// ---------------------------------------------------------------------------
 // LoadStoredLink
 // ---------------------------------------------------------------------------
 

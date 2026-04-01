@@ -3,6 +3,7 @@ package linkwell
 
 import (
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -230,11 +231,36 @@ func Hubs() []HubEntry {
 // BreadcrumbsFromLinks walks the rel="up" chain from path to build a
 // breadcrumb trail. The trail starts with Home, includes each ancestor found
 // via rel="up" links, and ends with the current page (empty Href). Returns nil
-// if no rel="up" links are registered for the path. Cycle-safe.
+// if no rel="up" links are registered for the path.
+//
+// When the exact path has no rel="up" links, BreadcrumbsFromLinks strips the
+// last path segment and retries up the hierarchy until a registered path is
+// found. Intermediate segments between the matched ancestor and the original
+// path are included as breadcrumbs. This allows child pages like
+// /admin/groups/new to inherit breadcrumbs from /admin/groups. Cycle-safe.
 func BreadcrumbsFromLinks(path string) []Breadcrumb {
+	// Find the nearest ancestor with rel="up" links by walking up the path.
+	matchedPath := path
+	var tailSegments []string
+	for {
+		upLinks := LinksFor(matchedPath, "up")
+		if len(upLinks) > 0 {
+			break
+		}
+		// Strip the last segment and try the parent path.
+		idx := strings.LastIndex(matchedPath, "/")
+		if idx <= 0 {
+			// Reached root with no match.
+			return nil
+		}
+		tailSegments = append([]string{matchedPath[idx+1:]}, tailSegments...)
+		matchedPath = matchedPath[:idx]
+	}
+
+	// Walk the rel="up" chain from the matched path.
 	var crumbs []Breadcrumb
 	visited := map[string]bool{}
-	current := path
+	current := matchedPath
 
 	for !visited[current] {
 		visited[current] = true
@@ -249,17 +275,81 @@ func BreadcrumbsFromLinks(path string) []Breadcrumb {
 		current = parent.Href
 	}
 
-	// Add home at the start
-	if len(crumbs) > 0 {
-		crumbs = append([]Breadcrumb{{Label: BreadcrumbLabelHome, Href: "/"}}, crumbs...)
+	// Add home at the start.
+	crumbs = append([]Breadcrumb{{Label: BreadcrumbLabelHome, Href: "/"}}, crumbs...)
+
+	// Add the matched path itself as a breadcrumb (it has rel="up" links,
+	// so it is a known page).
+	crumbs = append(crumbs, Breadcrumb{
+		Label: TitleFromPath(matchedPath),
+		Href:  matchedPath,
+	})
+
+	// Add intermediate tail segments (derived from path walk-up).
+	built := matchedPath
+	for i, seg := range tailSegments {
+		built += "/" + seg
+		href := built
+		if i == len(tailSegments)-1 {
+			href = "" // terminal segment has no href
+		}
+		crumbs = append(crumbs, Breadcrumb{Label: TitleFromPath("/" + seg), Href: href})
 	}
 
-	// Add current page (no href = current page, not a link)
-	if len(crumbs) > 0 {
-		crumbs = append(crumbs, Breadcrumb{Label: TitleFromPath(path)})
+	// If no tail segments were added, the matched path IS the original path,
+	// so set the last crumb's Href to empty (terminal).
+	if len(tailSegments) == 0 {
+		crumbs[len(crumbs)-1].Href = ""
 	}
 
 	return crumbs
+}
+
+// ResolveFromMaskWithPath combines bitmask-resolved breadcrumbs with
+// path-derived crumbs (using the walk-up behavior of BreadcrumbsFromLinks),
+// deduplicating by base path (query parameters stripped for comparison). The
+// from parameter is forwarded as a ?from= query parameter on intermediate path
+// crumb links. Returns nil if path produces no breadcrumbs.
+func ResolveFromMaskWithPath(mask uint64, path string, from string) []Breadcrumb {
+	maskCrumbs := ResolveFromMask(mask)
+	pathCrumbs := BreadcrumbsFromLinks(path)
+	if pathCrumbs == nil {
+		// Fall back to path-based breadcrumbs.
+		pathCrumbs = BreadcrumbsFromPath(path, nil)
+	}
+
+	// Build a set of base paths from mask crumbs for deduplication.
+	seen := make(map[string]bool, len(maskCrumbs))
+	for _, c := range maskCrumbs {
+		seen[basePath(c.Href)] = true
+	}
+
+	// Start with mask crumbs, then append path crumbs that aren't duplicates.
+	merged := make([]Breadcrumb, len(maskCrumbs))
+	copy(merged, maskCrumbs)
+
+	for _, c := range pathCrumbs {
+		bp := basePath(c.Href)
+		if seen[bp] {
+			continue
+		}
+		seen[bp] = true
+		// Forward the from param on intermediate links.
+		if c.Href != "" && from != "" {
+			c.Href = FromNav(c.Href, from)
+		}
+		merged = append(merged, c)
+	}
+
+	return merged
+}
+
+// basePath strips query parameters from a URL path for deduplication.
+func basePath(href string) string {
+	if idx := strings.IndexByte(href, '?'); idx >= 0 {
+		return href[:idx]
+	}
+	return href
 }
 
 // LoadStoredLink adds a single link relation from an external source (e.g., a
