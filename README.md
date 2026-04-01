@@ -1,5 +1,8 @@
 # linkwell
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/catgoose/linkwell.svg)](https://pkg.go.dev/github.com/catgoose/linkwell)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A Go library for HATEOAS-style hypermedia controls, link relations ([RFC 8288](https://www.rfc-editor.org/rfc/rfc8288)), and navigation primitives. Designed for server-rendered HTML apps using HTMX, but the data types are framework-agnostic.
 
 linkwell provides:
@@ -57,6 +60,8 @@ import hypermedia "github.com/catgoose/linkwell"
   - [Form Actions](#form-actions)
   - [Bulk Actions](#bulk-actions)
 - [Error Controls](#error-controls)
+- [Thread Safety](#thread-safety)
+- [Testing](#testing)
 
 ## Link Registry
 
@@ -127,7 +132,6 @@ peers := linkwell.RelatedLinksFor("/inventory")
 
 // Full registry snapshot (for admin/debug)
 all := linkwell.AllLinks()
-paths := linkwell.SortedPaths(all)
 ```
 
 ### RFC 8288 Link Header
@@ -566,6 +570,36 @@ ec = ec.WithOOB("#error-status", "innerHTML")
 
 // Wrap as a returnable error
 return linkwell.NewHTTPError(ec)
+```
+
+## Thread Safety
+
+All registry operations (`Link`, `Ring`, `Hub`, `LinksFor`, `AllLinks`, `Hubs`,
+`LoadStoredLink`, `RemoveLink`) are protected by `sync.RWMutex` and are safe for
+concurrent use. The typical pattern is init-time registration (call `Link`,
+`Ring`, and `Hub` during route setup before the server starts accepting
+requests), then read with `LinksFor`, `AllLinks`, `Hubs`, etc. at request time.
+
+`RegisterFrom` and `ResolveFromMask` are similarly protected and safe for
+concurrent use.
+
+## Testing
+
+Use `ResetForTesting` to clear all registries between tests. It is intended for
+test setup/teardown only and must not be called concurrently with request
+handlers. In parallel tests, call it at the start of each subtest and register
+it with `t.Cleanup`:
+
+```go
+func TestMyHandler(t *testing.T) {
+    linkwell.ResetForTesting()
+    t.Cleanup(linkwell.ResetForTesting)
+
+    linkwell.Hub("/admin", "Admin",
+        linkwell.Rel("/admin/users", "Users"),
+    )
+    // ... test logic
+}
 ```
 
 ## License
