@@ -639,3 +639,81 @@ func TestRemoveLink_CleansUpEmptyEntry(t *testing.T) {
 	_, exists := all["/src"]
 	assert.False(t, exists, "empty map entries must be cleaned up")
 }
+
+// ---------------------------------------------------------------------------
+// LinksFor — parent path walk-up (#19)
+// ---------------------------------------------------------------------------
+
+func TestLinksFor_ChildPath(t *testing.T) {
+	resetLinks(t)
+
+	Ring("admin-apps",
+		Rel("/admin/apps", "Apps"),
+		Rel("/admin/users", "Users"),
+	)
+
+	// /admin/apps/1 is not registered — should inherit links from /admin/apps
+	links := LinksFor("/admin/apps/1")
+	require.NotEmpty(t, links, "child path should return parent's links")
+	hrefs := make(map[string]bool)
+	for _, l := range links {
+		hrefs[l.Href] = true
+	}
+	assert.True(t, hrefs["/admin/users"], "expected related link to /admin/users via parent")
+}
+
+func TestLinksFor_DeepChildPath(t *testing.T) {
+	resetLinks(t)
+
+	Ring("admin-apps",
+		Rel("/admin/apps", "Apps"),
+		Rel("/admin/users", "Users"),
+	)
+
+	// /admin/apps/1/edit — two segments deep, should walk up to /admin/apps
+	links := LinksFor("/admin/apps/1/edit")
+	require.NotEmpty(t, links, "deeply nested child path should return ancestor links")
+	hrefs := make(map[string]bool)
+	for _, l := range links {
+		hrefs[l.Href] = true
+	}
+	assert.True(t, hrefs["/admin/users"], "expected related link to /admin/users via ancestor")
+}
+
+func TestLinksFor_ExactMatchStillWorks(t *testing.T) {
+	resetLinks(t)
+
+	Ring("admin-apps",
+		Rel("/admin/apps", "Apps"),
+		Rel("/admin/users", "Users"),
+	)
+
+	// Exact match for /admin/apps should return its own links, not a parent's
+	links := LinksFor("/admin/apps")
+	require.NotEmpty(t, links)
+	for _, l := range links {
+		assert.NotEqual(t, "/admin/apps", l.Href, "should not contain self-link")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// RelatedLinksFor — parent path walk-up (#19)
+// ---------------------------------------------------------------------------
+
+func TestRelatedLinksFor_ChildPath(t *testing.T) {
+	resetLinks(t)
+
+	Ring("admin-apps",
+		Rel("/admin/apps", "Apps"),
+		Rel("/admin/users", "Users"),
+	)
+
+	// /admin/apps/1 is not registered — should inherit related links from /admin/apps
+	related := RelatedLinksFor("/admin/apps/1")
+	require.NotEmpty(t, related, "child path should return parent's related links")
+	hrefs := make(map[string]bool)
+	for _, l := range related {
+		hrefs[l.Href] = true
+	}
+	assert.True(t, hrefs["/admin/users"], "expected /admin/users in related links via parent")
+}

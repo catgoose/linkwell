@@ -59,11 +59,31 @@ func Link(source, rel, target, title string) {
 // LinksFor returns all registered link relations for the given path. If one or
 // more rel types are provided, only relations matching those types are returned.
 // Returns a copy of the internal slice, safe to modify.
+//
+// When no links are registered for the exact path, LinksFor walks up the path
+// hierarchy by stripping the last segment and retrying until a registered path
+// is found or the root is reached. This allows child paths like
+// /admin/apps/1 to inherit links from /admin/apps.
 func LinksFor(path string, rels ...string) []LinkRelation {
 	linksMu.RLock()
 	defer linksMu.RUnlock()
 
-	all := linksMap[path]
+	// Walk up the path hierarchy until a registered path is found.
+	current := path
+	var all []LinkRelation
+	for {
+		if links, ok := linksMap[current]; ok {
+			all = links
+			break
+		}
+		idx := strings.LastIndex(current, "/")
+		if idx <= 0 {
+			// Reached root with no match.
+			break
+		}
+		current = current[:idx]
+	}
+
 	if len(rels) == 0 {
 		result := make([]LinkRelation, len(all))
 		copy(result, all)
@@ -162,6 +182,31 @@ func Hub(centerPath, centerTitle string, spokes ...RelEntry) {
 	}
 }
 
+// linksForExact returns all registered link relations for exactly the given
+// path, with optional rel filtering. It does NOT walk up the path hierarchy.
+func linksForExact(path string, rels ...string) []LinkRelation {
+	linksMu.RLock()
+	defer linksMu.RUnlock()
+
+	all := linksMap[path]
+	if len(rels) == 0 {
+		result := make([]LinkRelation, len(all))
+		copy(result, all)
+		return result
+	}
+	relSet := make(map[string]bool, len(rels))
+	for _, r := range rels {
+		relSet[r] = true
+	}
+	var filtered []LinkRelation
+	for _, l := range all {
+		if relSet[l.Rel] {
+			filtered = append(filtered, l)
+		}
+	}
+	return filtered
+}
+
 // hasLink checks if a link with the given href and rel already exists.
 func hasLink(links []LinkRelation, href, rel string) bool {
 	for _, l := range links {
@@ -240,10 +285,11 @@ func Hubs() []HubEntry {
 // /admin/groups/new to inherit breadcrumbs from /admin/groups. Cycle-safe.
 func BreadcrumbsFromLinks(path string) []Breadcrumb {
 	// Find the nearest ancestor with rel="up" links by walking up the path.
+	// Use linksForExact so the walk-up is controlled here, not inside LinksFor.
 	matchedPath := path
 	var tailSegments []string
 	for {
-		upLinks := LinksFor(matchedPath, "up")
+		upLinks := linksForExact(matchedPath, "up")
 		if len(upLinks) > 0 {
 			break
 		}
@@ -265,7 +311,7 @@ func BreadcrumbsFromLinks(path string) []Breadcrumb {
 	for !visited[current] {
 		visited[current] = true
 
-		upLinks := LinksFor(current, "up")
+		upLinks := linksForExact(current, "up")
 		if len(upLinks) == 0 {
 			break
 		}
