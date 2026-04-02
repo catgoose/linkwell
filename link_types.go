@@ -5,6 +5,22 @@ import (
 	"strings"
 )
 
+// Common IANA link relation types (RFC 8288).
+// See https://www.iana.org/assignments/link-relations/ for the full registry.
+const (
+	RelRelated    = "related"
+	RelUp         = "up"
+	RelSelf       = "self"
+	RelAlternate  = "alternate"
+	RelCanonical  = "canonical"
+	RelFirst      = "first"
+	RelLast       = "last"
+	RelNext       = "next"
+	RelPrev       = "prev"
+	RelCollection = "collection"
+	RelItem       = "item"
+)
+
 // LinkRelation represents a typed relationship between two resources, following
 // the IANA link relation model defined in RFC 8288. Each relation carries a
 // relation type (Rel), target URL (Href), human-readable label (Title), and an
@@ -68,14 +84,21 @@ func TitleFromPath(path string) string {
 
 // LinkHeader formats a slice of LinkRelation values as an RFC 8288 Link header
 // string. Each relation is rendered as `<href>; rel="type"; title="label"`,
-// joined by commas. Returns an empty string if links is empty.
+// joined by commas. The title parameter is omitted when empty and properly
+// escaped per RFC 7230 quoted-string rules. Returns an empty string if links
+// is empty.
 func LinkHeader(links []LinkRelation) string {
 	if len(links) == 0 {
 		return ""
 	}
 	parts := make([]string, len(links))
 	for i, l := range links {
-		parts[i] = fmt.Sprintf("<%s>; rel=\"%s\"; title=\"%s\"", l.Href, l.Rel, l.Title)
+		if l.Title == "" {
+			parts[i] = fmt.Sprintf("<%s>; rel=\"%s\"", l.Href, l.Rel)
+		} else {
+			escaped := strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(l.Title)
+			parts[i] = fmt.Sprintf("<%s>; rel=\"%s\"; title=\"%s\"", l.Href, l.Rel, escaped)
+		}
 	}
 	return strings.Join(parts, ", ")
 }

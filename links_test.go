@@ -188,6 +188,33 @@ func TestLinkHeader_Multiple(t *testing.T) {
 	assert.Contains(t, got, ", ")
 }
 
+func TestLinkHeader_EmptyTitle(t *testing.T) {
+	links := []LinkRelation{{Rel: "related", Href: "/b", Title: ""}}
+	got := LinkHeader(links)
+	assert.Equal(t, `</b>; rel="related"`, got)
+	assert.NotContains(t, got, "title")
+}
+
+func TestLinkHeader_EscapesQuotesInTitle(t *testing.T) {
+	links := []LinkRelation{{Rel: "related", Href: "/b", Title: `She said "hello"`}}
+	got := LinkHeader(links)
+	assert.Equal(t, `</b>; rel="related"; title="She said \"hello\""`, got)
+}
+
+func TestLinkHeader_EscapesBackslashInTitle(t *testing.T) {
+	links := []LinkRelation{{Rel: "related", Href: "/b", Title: `path\to\file`}}
+	got := LinkHeader(links)
+	assert.Equal(t, `</b>; rel="related"; title="path\\to\\file"`, got)
+}
+
+func TestRelConstants(t *testing.T) {
+	assert.Equal(t, "related", RelRelated)
+	assert.Equal(t, "up", RelUp)
+	assert.Equal(t, "self", RelSelf)
+	assert.Equal(t, "next", RelNext)
+	assert.Equal(t, "prev", RelPrev)
+}
+
 // ---------------------------------------------------------------------------
 // Rel
 // ---------------------------------------------------------------------------

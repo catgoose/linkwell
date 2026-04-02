@@ -29,7 +29,7 @@ var (
 )
 
 // Link registers a directional relationship from a source path to a target.
-// The rel parameter should be an IANA link relation type (e.g., "related", "up",
+// The rel parameter should be an IANA link relation type (e.g., RelRelated, RelUp,
 // "collection"). For rel="related", the inverse link is automatically created
 // so the relationship is symmetric — both pages will see each other in their
 // link sets. Registration is safe for concurrent use.
@@ -44,12 +44,12 @@ func Link(source, rel, target, title string) {
 	})
 
 	// rel="related" is symmetric — auto-create the inverse
-	if rel == "related" {
+	if rel == RelRelated {
 		// Derive the inverse title from the source path
 		// e.g., "/demo/inventory" -> "Inventory"
 		inverseTitle := TitleFromPath(source)
 		linksMap[target] = append(linksMap[target], LinkRelation{
-			Rel:   "related",
+			Rel:   RelRelated,
 			Href:  source,
 			Title: inverseTitle,
 		})
@@ -108,7 +108,7 @@ func LinksFor(path string, rels ...string) []LinkRelation {
 // path itself and deduplicating by href. Useful for rendering context bars or
 // "See also" panels where self-links would be redundant.
 func RelatedLinksFor(path string) []LinkRelation {
-	links := LinksFor(path, "related")
+	links := LinksFor(path, RelRelated)
 	// Deduplicate by href (symmetric registration can create dupes)
 	seen := make(map[string]bool)
 	var unique []LinkRelation
@@ -135,9 +135,9 @@ func Ring(name string, members ...RelEntry) {
 			if i == j {
 				continue
 			}
-			if !hasLink(linksMap[a.Path], b.Path, "related") {
+			if !hasLink(linksMap[a.Path], b.Path, RelRelated) {
 				linksMap[a.Path] = append(linksMap[a.Path], LinkRelation{
-					Rel:   "related",
+					Rel:   RelRelated,
 					Href:  b.Path,
 					Title: b.Title,
 					Group: name,
@@ -162,18 +162,18 @@ func Hub(centerPath, centerTitle string, spokes ...RelEntry) {
 
 	for _, spoke := range spokes {
 		// Center -> spoke
-		if !hasLink(linksMap[centerPath], spoke.Path, "related") {
+		if !hasLink(linksMap[centerPath], spoke.Path, RelRelated) {
 			linksMap[centerPath] = append(linksMap[centerPath], LinkRelation{
-				Rel:   "related",
+				Rel:   RelRelated,
 				Href:  spoke.Path,
 				Title: spoke.Title,
 				Group: centerTitle,
 			})
 		}
 		// Spoke -> center (uses rel="up" to indicate parent)
-		if !hasLink(linksMap[spoke.Path], centerPath, "up") {
+		if !hasLink(linksMap[spoke.Path], centerPath, RelUp) {
 			linksMap[spoke.Path] = append(linksMap[spoke.Path], LinkRelation{
-				Rel:   "up",
+				Rel:   RelUp,
 				Href:  centerPath,
 				Title: centerTitle,
 				Group: centerTitle,
@@ -260,7 +260,7 @@ func Hubs() []HubEntry {
 
 	entries := make([]HubEntry, 0, len(paths))
 	for _, p := range paths {
-		spokes := LinksFor(p, "related")
+		spokes := LinksFor(p, RelRelated)
 		sort.Slice(spokes, func(i, j int) bool {
 			return spokes[i].Title < spokes[j].Title
 		})
@@ -289,7 +289,7 @@ func BreadcrumbsFromLinks(path string) []Breadcrumb {
 	matchedPath := path
 	var tailSegments []string
 	for {
-		upLinks := linksForExact(matchedPath, "up")
+		upLinks := linksForExact(matchedPath, RelUp)
 		if len(upLinks) > 0 {
 			break
 		}
@@ -311,7 +311,7 @@ func BreadcrumbsFromLinks(path string) []Breadcrumb {
 	for !visited[current] {
 		visited[current] = true
 
-		upLinks := linksForExact(current, "up")
+		upLinks := linksForExact(current, RelUp)
 		if len(upLinks) == 0 {
 			break
 		}
