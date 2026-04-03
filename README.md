@@ -1,5 +1,52 @@
 # linkwell
 
+<!--toc:start-->
+
+- [linkwell](#linkwell)
+  - [Why](#why)
+  - [Install](#install)
+  - [Table of Contents](#table-of-contents)
+  - [Link Registry](#link-registry)
+    - [Registering Links](#registering-links)
+    - [Ring (Symmetric Group)](#ring-symmetric-group)
+    - [Hub (Star Topology)](#hub-star-topology)
+    - [Querying Links](#querying-links)
+    - [RFC 8288 Link Header](#rfc-8288-link-header)
+    - [Dynamic Links](#dynamic-links)
+  - [Breadcrumbs](#breadcrumbs)
+    - [From Link Graph](#from-link-graph)
+    - [From URL Path](#from-url-path)
+    - [Bitmask Breadcrumbs](#bitmask-breadcrumbs)
+  - [Controls](#controls)
+    - [Factory Functions](#factory-functions)
+    - [Control Modifiers](#control-modifiers)
+    - [HTMX Request Config](#htmx-request-config)
+  - [Navigation](#navigation)
+    - [NavConfig and NavItem](#navconfig-and-navitem)
+    - [Active State](#active-state)
+  - [Filters](#filters)
+    - [FilterBar](#filterbar)
+    - [Field Types](#field-types)
+    - [FilterGroup](#filtergroup)
+  - [Tables and Pagination](#tables-and-pagination)
+    - [Sortable Columns](#sortable-columns)
+    - [Pagination](#pagination)
+  - [Modals](#modals)
+  - [Action Patterns](#action-patterns)
+    - [Resource Actions](#resource-actions)
+    - [Row Actions](#row-actions)
+    - [Form Actions](#form-actions)
+    - [Bulk Actions](#bulk-actions)
+    - [Empty State and Catalog](#empty-state-and-catalog)
+  - [Error Controls](#error-controls)
+  - [Thread Safety](#thread-safety)
+  - [Testing](#testing)
+  - [Philosophy](#philosophy)
+  - [Architecture](#architecture)
+    - [How linkwell drives navigation](#how-linkwell-drives-navigation)
+  - [License](#license)
+  <!--toc:end-->
+
 [![Go Reference](https://pkg.go.dev/badge/github.com/catgoose/linkwell.svg)](https://pkg.go.dev/github.com/catgoose/linkwell)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -17,18 +64,21 @@ A Go library for HATEOAS-style hypermedia controls, link relations ([RFC 8288](h
 
 ```go
 // Hardcoded nav, scattered across handlers
-type NavItem struct{ Label, Href string; Active bool }
+type NavItem struct {
+	Label, Href string
+	Active      bool
+}
 nav := []NavItem{
-    {"Users", "/admin/users", path == "/admin/users"},
-    {"Roles", "/admin/roles", path == "/admin/roles"},
-    {"Settings", "/admin/settings", path == "/admin/settings"},
+	{"Users", "/admin/users", path == "/admin/users"},
+	{"Roles", "/admin/roles", path == "/admin/roles"},
+	{"Settings", "/admin/settings", path == "/admin/settings"},
 }
 
 // Breadcrumbs built by hand, per handler
 crumbs := []Breadcrumb{
-    {Label: "Home", Href: "/"},
-    {Label: "Admin", Href: "/admin"},
-    {Label: "Users", Href: ""},
+	{Label: "Home", Href: "/"},
+	{Label: "Admin", Href: "/admin"},
+	{Label: "Users", Href: ""},
 }
 
 // Pagination, filters, sort columns, modals, error controls --
@@ -40,17 +90,17 @@ crumbs := []Breadcrumb{
 ```go
 // Register once at startup
 linkwell.Hub("/admin", "Admin",
-    linkwell.Rel("/admin/users", "Users"),
-    linkwell.Rel("/admin/roles", "Roles"),
-    linkwell.Rel("/admin/settings", "Settings"),
+	linkwell.Rel("/admin/users", "Users"),
+	linkwell.Rel("/admin/roles", "Roles"),
+	linkwell.Rel("/admin/settings", "Settings"),
 )
 
 // At request time
 crumbs := linkwell.BreadcrumbsFromLinks("/admin/users")
 related := linkwell.RelatedLinksFor("/admin/users")
 controls := linkwell.ResourceActions(linkwell.ResourceActionCfg{
-    EditURL: "/admin/users/42/edit", DeleteURL: "/admin/users/42",
-    Target: "#content", ConfirmMsg: "Delete this user?",
+	EditURL: "/admin/users/42/edit", DeleteURL: "/admin/users/42",
+	Target: "#content", ConfirmMsg: "Delete this user?",
 })
 ```
 
@@ -139,9 +189,9 @@ linkwell.Link("/users/42", "up", "/users", "Users")
 
 ```go
 linkwell.Ring("Logistics",
-    linkwell.Rel("/inventory", "Inventory"),
-    linkwell.Rel("/warehouses", "Warehouses"),
-    linkwell.Rel("/shipments", "Shipments"),
+	linkwell.Rel("/inventory", "Inventory"),
+	linkwell.Rel("/warehouses", "Warehouses"),
+	linkwell.Rel("/shipments", "Shipments"),
 )
 // Each page now links to the other two with Group="Logistics"
 ```
@@ -152,9 +202,9 @@ linkwell.Ring("Logistics",
 
 ```go
 linkwell.Hub("/admin", "Admin",
-    linkwell.Rel("/admin/users", "Users"),
-    linkwell.Rel("/admin/roles", "Roles"),
-    linkwell.Rel("/admin/settings", "Settings"),
+	linkwell.Rel("/admin/users", "Users"),
+	linkwell.Rel("/admin/roles", "Roles"),
+	linkwell.Rel("/admin/settings", "Settings"),
 )
 ```
 
@@ -163,10 +213,10 @@ Query all hubs for site map rendering:
 ```go
 hubs := linkwell.Hubs() // []HubEntry sorted by path
 for _, hub := range hubs {
-    fmt.Println(hub.Title, hub.Path)
-    for _, spoke := range hub.Spokes {
-        fmt.Println("  ", spoke.Title, spoke.Href)
-    }
+	fmt.Println(hub.Title, hub.Path)
+	for _, spoke := range hub.Spokes {
+		fmt.Println("  ", spoke.Title, spoke.Href)
+	}
 }
 ```
 
@@ -203,7 +253,7 @@ Load and remove links at runtime (e.g., from a database):
 
 ```go
 linkwell.LoadStoredLink("/projects/42", linkwell.LinkRelation{
-    Rel: "related", Href: "/teams/7", Title: "Backend Team",
+	Rel: "related", Href: "/teams/7", Title: "Backend Team",
 })
 
 linkwell.RemoveLink("/projects/42", "/teams/7", "related")
@@ -233,7 +283,7 @@ Generate breadcrumbs from URL segments. Override labels by segment index.
 
 ```go
 crumbs := linkwell.BreadcrumbsFromPath("/users/42/edit", map[int]string{
-    1: "Jane Doe", // override "42" with a name
+	1: "Jane Doe", // override "42" with a name
 })
 // [{Label:"Home" Href:"/"}, {Label:"users" Href:"/users"},
 //  {Label:"Jane Doe" Href:"/users/42"}, {Label:"edit" Href:""}]
@@ -246,7 +296,7 @@ For pages reachable from multiple parents, use a `?from=` bitmask to preserve na
 ```go
 // Register origins at startup
 linkwell.RegisterFrom(linkwell.FromDashboard, linkwell.Breadcrumb{
-    Label: "Dashboard", Href: "/dashboard",
+	Label: "Dashboard", Href: "/dashboard",
 })
 
 // In handler: parse the ?from= param and resolve breadcrumbs
@@ -301,12 +351,12 @@ Controls are value types. Modifiers return copies.
 
 ```go
 ctrl := linkwell.RetryButton("Retry", linkwell.HxMethodGet, "/api/data", "#content").
-    WithSwap(linkwell.SwapOuterHTML).
-    WithVariant(linkwell.VariantDanger).
-    WithIcon(linkwell.IconCheck).
-    WithConfirm("Are you sure?").
-    WithDisabled(true).
-    WithErrorTarget("#inline-error")
+	WithSwap(linkwell.SwapOuterHTML).
+	WithVariant(linkwell.VariantDanger).
+	WithIcon(linkwell.IconCheck).
+	WithConfirm("Are you sure?").
+	WithDisabled(true).
+	WithErrorTarget("#inline-error")
 ```
 
 ### HTMX Request Config
@@ -319,11 +369,11 @@ req = req.WithInclude("closest form")
 
 // Or build manually
 req := linkwell.HxRequestConfig{
-    Method:  linkwell.HxMethodPost,
-    URL:     "/users",
-    Target:  "#user-list",
-    Include: "closest form",
-    Vals:    `{"status":"active"}`,
+	Method:  linkwell.HxMethodPost,
+	URL:     "/users",
+	Target:  "#user-list",
+	Include: "closest form",
+	Vals:    `{"status":"active"}`,
 }
 
 // Convert to attribute map for interop
@@ -338,15 +388,15 @@ attrs := req.Attrs() // map[string]string{"get": "/users", "target": "#user-list
 
 ```go
 nav := linkwell.NavConfig{
-    AppName:    "My App",
-    MaxVisible: 5, // overflow after 5 items
-    Items: []linkwell.NavItem{
-        {Label: "Dashboard", Href: "/dashboard", Icon: "home"},
-        {Label: "Users", Href: "/users", Icon: "users", Children: []linkwell.NavItem{
-            {Label: "Active", Href: "/users?status=active"},
-            {Label: "Invited", Href: "/users?status=invited"},
-        }},
-    },
+	AppName:    "My App",
+	MaxVisible: 5, // overflow after 5 items
+	Items: []linkwell.NavItem{
+		{Label: "Dashboard", Href: "/dashboard", Icon: "home"},
+		{Label: "Users", Href: "/users", Icon: "users", Children: []linkwell.NavItem{
+			{Label: "Active", Href: "/users?status=active"},
+			{Label: "Invited", Href: "/users?status=invited"},
+		}},
+	},
 }
 ```
 
@@ -381,13 +431,13 @@ Both functions handle nested children: a parent is marked active if any child ma
 
 ```go
 bar := linkwell.NewFilterBar("/users", "#user-table",
-    linkwell.SearchField("q", "Search users...", currentQuery),
-    linkwell.SelectField("status", "Status", currentStatus, linkwell.SelectOptions(currentStatus,
-        "", "All",
-        "active", "Active",
-        "inactive", "Inactive",
-    )),
-    linkwell.CheckboxField("verified", "Verified only", verifiedParam),
+	linkwell.SearchField("q", "Search users...", currentQuery),
+	linkwell.SelectField("status", "Status", currentStatus, linkwell.SelectOptions(currentStatus,
+		"", "All",
+		"active", "Active",
+		"inactive", "Inactive",
+	)),
+	linkwell.CheckboxField("verified", "Verified only", verifiedParam),
 )
 ```
 
@@ -405,9 +455,9 @@ Build select options from flat pairs:
 
 ```go
 opts := linkwell.SelectOptions(currentValue,
-    "draft", "Draft",
-    "published", "Published",
-    "archived", "Archived",
+	"draft", "Draft",
+	"published", "Published",
+	"archived", "Archived",
 )
 ```
 
@@ -417,8 +467,8 @@ opts := linkwell.SelectOptions(currentValue,
 
 ```go
 group := linkwell.NewFilterGroup("/products", "#product-table",
-    linkwell.SearchField("q", "Search...", ""),
-    linkwell.SelectField("category", "Category", "", categories),
+	linkwell.SearchField("q", "Search...", ""),
+	linkwell.SelectField("category", "Category", "", categories),
 )
 
 // Update options dynamically
@@ -436,9 +486,9 @@ selects := group.SelectFields()
 
 ```go
 cols := []linkwell.TableCol{
-    linkwell.SortableCol("name", "Name", sortKey, sortDir, baseURL, "#table", "#filter-form"),
-    linkwell.SortableCol("email", "Email", sortKey, sortDir, baseURL, "#table", "#filter-form"),
-    {Key: "actions", Label: "Actions"}, // non-sortable
+	linkwell.SortableCol("name", "Name", sortKey, sortDir, baseURL, "#table", "#filter-form"),
+	linkwell.SortableCol("email", "Email", sortKey, sortDir, baseURL, "#table", "#filter-form"),
+	{Key: "actions", Label: "Actions"}, // non-sortable
 }
 ```
 
@@ -450,13 +500,13 @@ Sort direction toggles: unsorted -> asc -> desc -> asc.
 totalPages := linkwell.ComputeTotalPages(totalItems, perPage)
 
 info := linkwell.PageInfo{
-    BaseURL:    "/users?q=foo",
-    Page:       currentPage,
-    PerPage:    25,
-    TotalItems: totalItems,
-    TotalPages: totalPages,
-    Target:     "#user-table",
-    Include:    "#filter-form",
+	BaseURL:    "/users?q=foo",
+	Page:       currentPage,
+	PerPage:    25,
+	TotalItems: totalItems,
+	TotalPages: totalPages,
+	Target:     "#user-table",
+	Include:    "#filter-form",
 }
 
 controls := linkwell.PaginationControls(info)
@@ -477,26 +527,26 @@ url := info.URLForPage(3) // "/users?q=foo&page=3"
 
 ```go
 modal := linkwell.ModalConfig{
-    ID:       "delete-user-modal",
-    Title:    "Delete User",
-    Buttons:  linkwell.ModalDeleteCancel,
-    HxPost:   "/users/42/delete",
-    HxTarget: "#user-list",
-    HxSwap:   linkwell.SwapOuterHTML,
+	ID:       "delete-user-modal",
+	Title:    "Delete User",
+	Buttons:  linkwell.ModalDeleteCancel,
+	HxPost:   "/users/42/delete",
+	HxTarget: "#user-list",
+	HxSwap:   linkwell.SwapOuterHTML,
 }
 ```
 
 Preset button sets:
 
-| Set | Buttons |
-|-----|---------|
-| `ModalOK` | OK |
-| `ModalYesNo` | No, Yes |
-| `ModalSaveCancel` | Cancel, Save |
-| `ModalSaveCancelReset` | Reset, Cancel, Save |
-| `ModalSubmitCancel` | Cancel, Submit |
-| `ModalConfirmCancel` | Cancel, Confirm (danger) |
-| `ModalDeleteCancel` | Cancel, Delete (danger) |
+| Set                    | Buttons                  |
+| ---------------------- | ------------------------ |
+| `ModalOK`              | OK                       |
+| `ModalYesNo`           | No, Yes                  |
+| `ModalSaveCancel`      | Cancel, Save             |
+| `ModalSaveCancelReset` | Reset, Cancel, Save      |
+| `ModalSubmitCancel`    | Cancel, Submit           |
+| `ModalConfirmCancel`   | Cancel, Confirm (danger) |
+| `ModalDeleteCancel`    | Cancel, Delete (danger)  |
 
 Report issue modal shortcut:
 
@@ -520,11 +570,11 @@ Edit + Delete controls for resource detail pages:
 
 ```go
 controls := linkwell.ResourceActions(linkwell.ResourceActionCfg{
-    EditURL:     "/users/42/edit",
-    DeleteURL:   "/users/42",
-    ConfirmMsg:  "Delete this user?",
-    Target:      "#content",
-    ErrorTarget: "#error",
+	EditURL:     "/users/42/edit",
+	DeleteURL:   "/users/42",
+	ConfirmMsg:  "Delete this user?",
+	Target:      "#content",
+	ErrorTarget: "#error",
 })
 ```
 
@@ -535,20 +585,20 @@ Controls for table rows with different swap targets:
 ```go
 // Edit swaps the row, Delete swaps the row
 controls := linkwell.RowActions(linkwell.RowActionCfg{
-    EditURL:     "/users/42/edit",
-    DeleteURL:   "/users/42",
-    RowTarget:   "#row-42",
-    ConfirmMsg:  "Delete this user?",
-    ErrorTarget: "#row-42-error",
+	EditURL:     "/users/42/edit",
+	DeleteURL:   "/users/42",
+	RowTarget:   "#row-42",
+	ConfirmMsg:  "Delete this user?",
+	ErrorTarget: "#row-42-error",
 })
 
 // Edit swaps the row, Delete replaces the whole table
 controls := linkwell.TableRowActions(linkwell.TableRowActionCfg{
-    EditURL:     "/users/42/edit",
-    DeleteURL:   "/users/42",
-    RowTarget:   "#row-42",
-    TableTarget: "#user-table",
-    ConfirmMsg:  "Delete this user?",
+	EditURL:     "/users/42/edit",
+	DeleteURL:   "/users/42",
+	RowTarget:   "#row-42",
+	TableTarget: "#user-table",
+	ConfirmMsg:  "Delete this user?",
 })
 ```
 
@@ -557,18 +607,18 @@ Inline edit row controls:
 ```go
 // Existing row: Save uses PUT
 controls := linkwell.RowFormActions(linkwell.RowFormActionCfg{
-    SaveURL:      "/users/42",
-    CancelURL:    "/users/42",
-    SaveTarget:   "#row-42",
-    CancelTarget: "#row-42",
+	SaveURL:      "/users/42",
+	CancelURL:    "/users/42",
+	SaveTarget:   "#row-42",
+	CancelTarget: "#row-42",
 })
 
 // New row: Save uses POST
 controls := linkwell.NewRowFormActions(linkwell.RowFormActionCfg{
-    SaveURL:      "/users",
-    CancelURL:    "/users/new/cancel",
-    SaveTarget:   "#new-row",
-    CancelTarget: "#new-row",
+	SaveURL:      "/users",
+	CancelURL:    "/users/new/cancel",
+	SaveTarget:   "#new-row",
+	CancelTarget: "#new-row",
 })
 ```
 
@@ -586,11 +636,11 @@ Toolbar controls for batch operations on checkbox-selected rows:
 
 ```go
 controls := linkwell.BulkActions(linkwell.BulkActionCfg{
-    DeleteURL:        "/users/bulk-delete",
-    ActivateURL:      "/users/bulk-activate",
-    DeactivateURL:    "/users/bulk-deactivate",
-    TableTarget:      "#user-table",
-    CheckboxSelector: ".user-checkbox",
+	DeleteURL:        "/users/bulk-delete",
+	ActivateURL:      "/users/bulk-activate",
+	DeactivateURL:    "/users/bulk-deactivate",
+	TableTarget:      "#user-table",
+	CheckboxSelector: ".user-checkbox",
 })
 ```
 
@@ -608,27 +658,27 @@ Status-code-specific control sets for error pages:
 ```go
 // Dispatch by status code
 controls := linkwell.ErrorControlsForStatus(404, linkwell.ErrorControlOpts{
-    HomeURL: "/",
+	HomeURL: "/",
 })
 
 // Or use individual builders
-controls := linkwell.NotFoundControls("/")           // [Back, GoHome]
-controls := linkwell.ServiceErrorControls(opts)       // [Retry?, Dismiss]
-controls := linkwell.UnauthorizedControls("/login")   // [Log In?, Dismiss]
-controls := linkwell.ForbiddenControls()              // [Back, Dismiss]
-controls := linkwell.InternalErrorControls(opts)      // [Retry?, Dismiss]
+controls := linkwell.NotFoundControls("/")          // [Back, GoHome]
+controls := linkwell.ServiceErrorControls(opts)     // [Retry?, Dismiss]
+controls := linkwell.UnauthorizedControls("/login") // [Log In?, Dismiss]
+controls := linkwell.ForbiddenControls()            // [Back, Dismiss]
+controls := linkwell.InternalErrorControls(opts)    // [Retry?, Dismiss]
 ```
 
 `ErrorContext` carries the full error state through a rendering pipeline:
 
 ```go
 ec := linkwell.ErrorContext{
-    StatusCode: 500,
-    Message:    "Database connection failed",
-    Route:      "/api/users",
-    RequestID:  "abc-123",
-    Controls:   linkwell.InternalErrorControls(opts),
-    Closable:   true,
+	StatusCode: 500,
+	Message:    "Database connection failed",
+	Route:      "/api/users",
+	RequestID:  "abc-123",
+	Controls:   linkwell.InternalErrorControls(opts),
+	Closable:   true,
 }
 
 // Fluent modifiers
@@ -665,13 +715,13 @@ it with `t.Cleanup`:
 
 ```go
 func TestMyHandler(t *testing.T) {
-    linkwell.ResetForTesting()
-    t.Cleanup(linkwell.ResetForTesting)
+	linkwell.ResetForTesting()
+	t.Cleanup(linkwell.ResetForTesting)
 
-    linkwell.Hub("/admin", "Admin",
-        linkwell.Rel("/admin/users", "Users"),
-    )
-    // ... test logic
+	linkwell.Hub("/admin", "Admin",
+		linkwell.Rel("/admin/users", "Users"),
+	)
+	// ... test logic
 }
 ```
 
