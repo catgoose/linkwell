@@ -44,6 +44,7 @@
   - [Error Controls](#error-controls)
   - [Graph Validation](#graph-validation)
   - [Sitemap](#sitemap)
+  - [Speculation Rules](#speculation-rules)
   - [Thread Safety](#thread-safety)
   - [Testing](#testing)
   - [Recipes](#recipes)
@@ -864,6 +865,52 @@ Each `SitemapEntry` provides:
 | `Parent`   | `rel="up"` target (empty for roots)                 |
 | `Children` | Hub spoke paths                                     |
 | `Group`    | Ring group name                                     |
+
+## Speculation Rules
+
+The [Speculation Rules API](https://developer.mozilla.org/en-US/docs/Web/API/Speculation_Rules_API) lets browsers prefetch or prerender pages before the user navigates, declared as JSON inside a `<script type="speculationrules">` block. No JavaScript required -- the browser handles it natively.
+
+linkwell's link registry already describes the navigation graph. Hub spokes are natural prefetch candidates (list-to-detail navigation), and Ring members are moderate candidates (peer navigation). The same data that drives breadcrumbs and sitemaps can drive speculation rules.
+
+**Why this lives in application code, not linkwell:** linkwell is a data library with no rendering logic and no browser-specific concerns. Speculation rules are an output format -- the same way linkwell doesn't generate HTML but provides data for templates to consume, it doesn't generate `<script>` tags but provides the navigation data you need to build them.
+
+Build speculation rules from the registry in your application:
+
+```go
+// speculationRules builds a Speculation Rules JSON string from linkwell's
+// link registry. Hub spokes get prefetched on hover (moderate eagerness),
+// giving users near-instant navigation to detail pages.
+func speculationRules() string {
+    var patterns []string
+    for _, hub := range linkwell.Hubs() {
+        for _, spoke := range hub.Spokes {
+            patterns = append(patterns, spoke.Href+"*")
+        }
+    }
+    if len(patterns) == 0 {
+        return ""
+    }
+    rules := map[string]any{
+        "prefetch": []map[string]any{{
+            "where":    map[string]any{"href_matches": patterns},
+            "eagerness": "moderate",
+        }},
+    }
+    b, _ := json.Marshal(rules)
+    return string(b)
+}
+```
+
+Emit it in your base layout template:
+
+```html
+<!-- In your base layout template -->
+{{ if $rules := speculationRules }}
+<script type="speculationrules">{{ $rules }}</script>
+{{ end }}
+```
+
+**Browser support:** Chrome 121+, Edge 121+. Other browsers ignore the `<script type="speculationrules">` tag entirely, so this is progressive enhancement -- free to add, zero cost when unsupported.
 
 ## Thread Safety
 
