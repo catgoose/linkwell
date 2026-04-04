@@ -3,9 +3,9 @@
 <!--toc:start-->
 
 - [linkwell](#linkwell)
-  - [Why](#why)
+  - [The Problem](#the-problem)
+  - [The Fix](#the-fix)
   - [Install](#install)
-  - [Table of Contents](#table-of-contents)
   - [Link Registry](#link-registry)
     - [Registering Links](#registering-links)
     - [Ring (Symmetric Group)](#ring-symmetric-group)
@@ -24,6 +24,7 @@
   - [Navigation](#navigation)
     - [NavConfig and NavItem](#navconfig-and-navitem)
     - [Active State](#active-state)
+  - [Tabs](#tabs)
   - [Filters](#filters)
     - [FilterBar](#filterbar)
     - [Field Types](#field-types)
@@ -32,6 +33,8 @@
     - [Sortable Columns](#sortable-columns)
     - [Pagination](#pagination)
   - [Modals](#modals)
+  - [Toasts](#toasts)
+  - [Stepper](#stepper)
   - [Action Patterns](#action-patterns)
     - [Resource Actions](#resource-actions)
     - [Row Actions](#row-actions)
@@ -39,8 +42,11 @@
     - [Bulk Actions](#bulk-actions)
     - [Empty State and Catalog](#empty-state-and-catalog)
   - [Error Controls](#error-controls)
+  - [Graph Validation](#graph-validation)
+  - [Sitemap](#sitemap)
   - [Thread Safety](#thread-safety)
   - [Testing](#testing)
+  - [Recipes](#recipes)
   - [Philosophy](#philosophy)
   - [Architecture](#architecture)
     - [How linkwell drives navigation](#how-linkwell-drives-navigation)
@@ -58,9 +64,19 @@
 
 A Go library for HATEOAS-style hypermedia controls, link relations ([RFC 8288](https://www.rfc-editor.org/rfc/rfc8288)), and navigation primitives. Designed for server-rendered HTML apps using HTMX, but the data types are framework-agnostic.
 
-## Why
+Your JSON endpoint returns data. Your HTML page returns data AND WHAT TO DO WITH IT. linkwell is the library that makes "what to do with it" a first-class concern.
 
-**Without linkwell:**
+## The Problem
+
+> Big Brain Developer say "I have built a micro-frontend architecture with seventeen independently deployable SPAs, each with its own state management solution, communicating through a custom event bus with schema validation."
+>
+> Grug say "what it do"
+>
+> Big Brain Developer say "it renders a table of users."
+>
+> -- The Recorded Sayings of Layman Grug
+
+Every server-rendered app reinvents the same things: nav bars with active states, breadcrumbs stitched together by hand, pagination controls, filter forms, modal configs, action buttons with confirmation dialogs. Each handler builds its own structs. Each project copies the last one's approach and changes just enough to break it.
 
 ```go
 // Hardcoded nav, scattered across handlers
@@ -85,7 +101,19 @@ crumbs := []Breadcrumb{
 // all custom structs, repeated in every project.
 ```
 
-**With linkwell:**
+You have constructed an ENORMOUS and MAGNIFICENT cathedral of boilerplate for the sole purpose of avoiding a shared vocabulary for hypermedia controls.
+
+## The Fix
+
+> "before enlightenment: fetch JSON, parse JSON, validate JSON, transform JSON, store JSON in client state, derive view from client state, diff virtual DOM, reconcile DOM."
+>
+> "and after enlightenment?"
+>
+> "`hx-get`"
+>
+> -- Layman Grug
+
+Declare your link graph once. Query it at request time. Let the server drive the state.
 
 ```go
 // Register once at startup
@@ -108,11 +136,18 @@ linkwell provides:
 
 - A **link registry** for declaring relationships between pages (related, parent/child, hub-and-spoke)
 - **Breadcrumb** generation from link graphs or URL paths
-- **Hypermedia controls** — pure-data descriptors for buttons, actions, and navigation affordances
+- **Hypermedia controls** -- pure-data descriptors for buttons, actions, and navigation affordances
+- **Tabs** for in-page tabbed navigation with HTMX lazy-loading
 - **Filter, table, and pagination** primitives for data-heavy views
 - **Modal** configuration with preset button sets
+- **Toast** notifications for success/info/warning/error feedback
+- **Stepper** for multi-step wizard flows with auto-generated navigation controls
 - **Navigation** types with active-state computation
 - **Error controls** dispatched by HTTP status code
+- **Graph validation** for catching link registration bugs at test time
+- **Sitemap** generation from the link registry
+
+No rendering logic. No framework coupling. Just data structures that your templates consume. The server decides what actions are available, and the controls carry that decision to the HTML.
 
 ## Install
 
@@ -125,42 +160,6 @@ Import with an alias if you prefer:
 ```go
 import hypermedia "github.com/catgoose/linkwell"
 ```
-
-## Table of Contents
-
-- [Link Registry](#link-registry)
-  - [Registering Links](#registering-links)
-  - [Ring (Symmetric Group)](#ring-symmetric-group)
-  - [Hub (Star Topology)](#hub-star-topology)
-  - [Querying Links](#querying-links)
-  - [RFC 8288 Link Header](#rfc-8288-link-header)
-- [Breadcrumbs](#breadcrumbs)
-  - [From Link Graph](#from-link-graph)
-  - [From URL Path](#from-url-path)
-  - [Bitmask Breadcrumbs](#bitmask-breadcrumbs)
-- [Controls](#controls)
-  - [Factory Functions](#factory-functions)
-  - [Control Modifiers](#control-modifiers)
-  - [HTMX Request Config](#htmx-request-config)
-- [Navigation](#navigation)
-  - [NavConfig and NavItem](#navconfig-and-navitem)
-  - [Active State](#active-state)
-- [Filters](#filters)
-  - [FilterBar](#filterbar)
-  - [Field Types](#field-types)
-  - [FilterGroup](#filtergroup)
-- [Tables and Pagination](#tables-and-pagination)
-  - [Sortable Columns](#sortable-columns)
-  - [Pagination](#pagination)
-- [Modals](#modals)
-- [Action Patterns](#action-patterns)
-  - [Resource Actions](#resource-actions)
-  - [Row Actions](#row-actions)
-  - [Form Actions](#form-actions)
-  - [Bulk Actions](#bulk-actions)
-- [Error Controls](#error-controls)
-- [Thread Safety](#thread-safety)
-- [Testing](#testing)
 
 ## Link Registry
 
@@ -222,8 +221,10 @@ for _, hub := range hubs {
 
 ### Querying Links
 
+`LinksFor` walks parent path segments when the exact path has no registered links, so `/admin/apps/1` inherits links from `/admin/apps`.
+
 ```go
-// All links for a path
+// All links for a path (walks parent paths if needed)
 links := linkwell.LinksFor("/inventory")
 
 // Only specific relation types
@@ -239,13 +240,15 @@ all := linkwell.AllLinks()
 
 ### RFC 8288 Link Header
 
-Format links as a standard `Link` HTTP header:
+Format links as a standard `Link` HTTP header. Titles are properly escaped per RFC 7230 quoted-string rules.
 
 ```go
 links := linkwell.LinksFor("/inventory")
 header := linkwell.LinkHeader(links)
 // </warehouses>; rel="related"; title="Warehouses", ...
 ```
+
+Named constants cover common IANA relation types: `RelRelated`, `RelUp`, `RelSelf`, `RelAlternate`, `RelCanonical`, `RelFirst`, `RelLast`, `RelNext`, `RelPrev`, `RelCollection`, `RelItem`.
 
 ### Dynamic Links
 
@@ -261,7 +264,7 @@ linkwell.RemoveLink("/projects/42", "/teams/7", "related")
 
 ## Breadcrumbs
 
-> The links are RIGHT THERE. In the HTML. They have been there this whole time.
+> The links are RIGHT THERE. In the HTML. They have been there this whole time. You have been stepping over them to get to your OpenAPI generator.
 >
 > -- The Wisdom of the Uniform Interface
 
@@ -316,6 +319,8 @@ href := linkwell.FromNav("/users/42", c.QueryParam("from"))
 > -- The Wisdom of the Uniform Interface
 
 A `Control` is a pure-data descriptor for a hypermedia affordance (button, link, action). Templates consume controls to render the appropriate HTML element -- the control itself has no rendering logic.
+
+The `<button>` with an `hx-delete` says "here is something you can destroy, and here is exactly how to destroy it, and here is where the confirmation dialog will appear, and none of this required a README." linkwell makes your server produce those controls as data, so your templates just render them.
 
 ### Factory Functions
 
@@ -422,6 +427,32 @@ items := linkwell.SetActiveNavItemPrefix(nav.Items, "/users/42/edit")
 ```
 
 Both functions handle nested children: a parent is marked active if any child matches.
+
+## Tabs
+
+> Student ask Grug: "what is the way of the hypermedia?"
+>
+> Grug say: "server return html. browser render html. what is difficult?"
+>
+> -- The Recorded Sayings of Layman Grug
+
+`TabConfig` and `TabItem` describe in-page tabbed navigation. Structurally similar to `NavItem` but scoped to a content panel with HTMX lazy-load semantics. The server decides which tabs exist and which is active.
+
+```go
+tabs := linkwell.NewTabConfig("user-tabs", "#tab-content",
+	linkwell.TabItem{Label: "Overview", Href: "/users/42/overview", Icon: "user"},
+	linkwell.TabItem{Label: "Activity", Href: "/users/42/activity", Icon: "clock"},
+	linkwell.TabItem{Label: "Settings", Href: "/users/42/settings", Icon: "cog"},
+)
+tabs.Items = linkwell.SetActiveTab(tabs.Items, "/users/42/activity")
+```
+
+Each `TabItem` supports:
+
+- `Target` -- per-tab hx-target override (falls back to `TabConfig.Target`)
+- `Badge` -- optional count/status indicator
+- `Swap` -- HTMX swap strategy (defaults to innerHTML)
+- `Disabled` -- non-interactive state
 
 ## Filters
 
@@ -554,15 +585,76 @@ Report issue modal shortcut:
 modal := linkwell.ReportIssueModal(requestID)
 ```
 
+## Toasts
+
+> THE FOOL deleted the API client. THE FOOL deleted the route constants. THE FOOL wrote an `<a>` tag. The browser followed it. It worked.
+>
+> -- The Dothog Manifesto
+
+`Toast` is the success/info/warning complement to `ErrorContext`. The server decides what feedback to show and the template renders the appropriate notification. Toasts are value types -- use the `With*` methods to derive modified copies.
+
+```go
+// Factory functions for each variant
+toast := linkwell.SuccessToast("User created")
+toast := linkwell.InfoToast("Export queued")
+toast := linkwell.WarningToast("API rate limit approaching")
+toast := linkwell.ErrorToast("Upload failed")
+```
+
+Builder chain for a full notification with an undo action:
+
+```go
+toast := linkwell.SuccessToast("User deleted").
+	WithControls(linkwell.HTMXAction("Undo", linkwell.HxPost("/users/42/restore", "#user-table"))).
+	WithAutoDismiss(5).
+	WithOOB("#toast-container", "afterbegin")
+```
+
+| Field         | Purpose                                              |
+| ------------- | ---------------------------------------------------- |
+| `Message`     | User-visible notification text                       |
+| `Variant`     | Visual style: success, info, warning, error          |
+| `Controls`    | Optional action affordances (e.g., Undo button)      |
+| `AutoDismiss` | Seconds before auto-close (0 = sticky)               |
+| `OOBTarget`   | CSS selector for HTMX OOB swap target                |
+| `OOBSwap`     | hx-swap-oob strategy (e.g., "afterbegin")            |
+
+## Stepper
+
+> grug supernatural power and marvelous activity: returning html and carrying single binary.
+>
+> -- The Recorded Sayings of Layman Grug
+
+`StepperConfig` describes a multi-step wizard flow where the server knows the full step sequence, current position, and completion state. Navigation controls are auto-generated.
+
+```go
+stepper := linkwell.NewStepper(1, // currently on step 2 (0-indexed)
+	linkwell.Step{Label: "Account", Href: "/onboard/account", Icon: "user"},
+	linkwell.Step{Label: "Profile", Href: "/onboard/profile", Icon: "id-card"},
+	linkwell.Step{Label: "Preferences", Href: "/onboard/prefs", Icon: "sliders"},
+	linkwell.Step{Label: "Review", Href: "/onboard/review", Icon: "check-circle"},
+)
+```
+
+`NewStepper` auto-computes:
+
+- Steps before the current index are marked `StepComplete`
+- The current step is marked `StepActive`
+- Steps after are marked `StepPending`
+- Pre-set statuses like `StepSkipped` are preserved
+- `Prev` control points to the previous step (nil on first)
+- `Next` control points to the next step (nil on last)
+- `Submit` control appears only on the final step (with `VariantPrimary`)
+
+## Action Patterns
+
 > HATEOAS: Hypermedia As The Engine Of Application State. Yes, it is an ugly acronym. The truth is not always beautiful. Sometimes the truth is an ugly acronym that you should have tattooed on the inside of your eyelids.
 >
 > -- The Wisdom of the Uniform Interface
 
-Action patterns are HATEOAS made concrete — the server decides what actions are available, and the controls carry that decision to the template.
+Action patterns are HATEOAS made concrete -- the server decides what actions are available, and the controls carry that decision to the template. The representation tells the client what is possible RIGHT NOW. When what is possible changes, the representation changes, and the client adapts.
 
-## Action Patterns
-
-Pre-built control sets for common CRUD and data-management patterns. All pattern functions conditionally include controls based on which URLs are provided — omit a URL to hide that action.
+All pattern functions conditionally include controls based on which URLs are provided -- omit a URL to hide that action.
 
 ### Resource Actions
 
@@ -689,11 +781,89 @@ ec = ec.WithOOB("#error-status", "innerHTML")
 return linkwell.NewHTTPError(ec)
 ```
 
-> Enter the application with a single URI and a set of standardized media types. Follow the links. Submit the forms. Let the server drive the state. That is all.
+## Graph Validation
+
+> If your client must read your API docs to know which URL to `POST` to, that is out-of-band. If your client must be recompiled when you rename a resource, you have coupled the client to the server's URI structure and you will maintain this coupling in blood and tears until one of you is decommissioned.
 >
 > -- The Wisdom of the Uniform Interface
 
-That is linkwell's entire design: declare links once, query them at request time, and let the link graph drive navigation.
+Link registration bugs are silent -- a typo in a path means a breadcrumb chain breaks or a related link disappears. `ValidateGraph` catches structural issues at test time before they reach production.
+
+```go
+func TestLinkGraphIntegrity(t *testing.T) {
+	setupRoutes(e)
+
+	issues := linkwell.ValidateGraph()
+	for _, issue := range issues {
+		t.Errorf("link graph: %s -- %s (%s)", issue.Path, issue.Message, issue.Kind)
+	}
+}
+```
+
+Detected issues:
+
+| Kind               | Description                                         |
+| ------------------ | --------------------------------------------------- |
+| `orphan`           | Path with no inbound links from any other path      |
+| `broken_up`        | `rel="up"` target is not registered                 |
+| `dead_spoke`       | Hub spoke path has no registered links               |
+
+Validate that registered paths match your router's route set:
+
+```go
+func TestAllLinksMatchRoutes(t *testing.T) {
+	router := setupRouter()
+	routes := extractRoutes(router)
+
+	issues := linkwell.ValidateAgainstRoutes(routes)
+	for _, issue := range issues {
+		t.Errorf("route mismatch: %s -- %s", issue.Path, issue.Message)
+	}
+}
+```
+
+| Kind                 | Description                                        |
+| -------------------- | -------------------------------------------------- |
+| `unregistered_route` | Registered link path has no matching route          |
+| `missing_route`      | Route has no link graph presence                    |
+
+## Sitemap
+
+Derive a structured sitemap from the link registry. The hub/spoke/ring topology already contains the page hierarchy -- `Sitemap` exposes it as a queryable data type without maintaining a separate definition.
+
+```go
+// Full sitemap sorted by path
+entries := linkwell.Sitemap()
+
+// Only top-level entries (no parent)
+roots := linkwell.SitemapRoots()
+
+// HTML sitemap page
+for _, entry := range entries {
+	fmt.Printf("%s (%s)\n", entry.Path, entry.Title)
+	if entry.Parent != "" {
+		fmt.Printf("  parent: %s\n", entry.Parent)
+	}
+	for _, child := range entry.Children {
+		fmt.Printf("  child: %s\n", child)
+	}
+}
+
+// XML sitemap generation
+for _, entry := range roots {
+	fmt.Fprintf(w, "<url><loc>%s%s</loc></url>\n", baseURL, entry.Path)
+}
+```
+
+Each `SitemapEntry` provides:
+
+| Field      | Source                                              |
+| ---------- | --------------------------------------------------- |
+| `Path`     | Registered path                                     |
+| `Title`    | Hub title or derived from path                      |
+| `Parent`   | `rel="up"` target (empty for roots)                 |
+| `Children` | Hub spoke paths                                     |
+| `Group`    | Ring group name                                     |
 
 ## Thread Safety
 
@@ -725,13 +895,21 @@ func TestMyHandler(t *testing.T) {
 }
 ```
 
+## Recipes
+
+See [recipes.md](recipes.md) for integration patterns showing linkwell and [tavern](https://github.com/catgoose/tavern) working together in server-rendered HTMX apps. Recipes cover live dashboards, real-time tables, delete-with-broadcast, scoped notifications, lifecycle-aware publishing, and multi-step wizard flows.
+
 ## Philosophy
 
-Linkwell follows the [dothog design philosophy](https://github.com/catgoose/dothog/blob/main/PHILOSOPHY.md): the server is the source of truth for navigation, the link registry is just a data structure, and templates consume pure data — no rendering logic in the library.
-
-> THE FOOL deleted the route constants. THE FOOL deleted the URL builder. THE FOOL wrote an `<a>` tag. The browser followed it. It worked. It had always worked.
+> THE FOOL deleted the route constants. THE FOOL deleted the URL builder. THE FOOL deleted the TypeScript interfaces. THE FOOL wrote an `<a>` tag. The browser followed it. It worked. It had always worked.
 >
 > -- The Dothog Manifesto
+
+linkwell follows the [dothog design philosophy](https://github.com/catgoose/dothog/blob/main/PHILOSOPHY.md): the server is the source of truth for navigation, the link registry is just a data structure, and templates consume pure data -- no rendering logic in the library.
+
+The whole point of hypermedia is that the server tells the client what to do next IN THE RESPONSE ITSELF. linkwell is the vocabulary for expressing that. Register your link graph once, query it at request time, and let the controls carry the server's decisions to the HTML. The client receives a page, sees what it can do, and does it. Like a person. Using a website.
+
+Grug's supernatural power and marvelous activity: returning HTML and carrying a single binary.
 
 ## Architecture
 
@@ -752,6 +930,12 @@ Linkwell follows the [dothog design philosophy](https://github.com/catgoose/doth
   │ (links)  │     request time       │  controls  │
   └──────────┘                        └───────────┘
 ```
+
+> Enter the application with a single URI and a set of standardized media types. Follow the links. Submit the forms. Let the server drive the state. That is all.
+>
+> -- The Wisdom of the Uniform Interface
+
+That is linkwell's entire design. There is no conclusion. There is only the next request.
 
 ## License
 
