@@ -223,6 +223,43 @@ func TestValidateAgainstRoutes_EmptyRegistry(t *testing.T) {
 	assert.Len(t, missing, 2, "all routes should be flagged as missing from empty registry")
 }
 
+func TestValidateAgainstRoutes_TargetOnlyPathUnregistered(t *testing.T) {
+	resetLinks(t)
+
+	// /target is only a link target (not a source) and has no matching route.
+	Link("/source", "related", "/target", "Target")
+
+	routes := []string{"/source"}
+	issues := ValidateAgainstRoutes(routes)
+
+	var unregistered []LinkIssue
+	for _, i := range issues {
+		if i.Kind == "unregistered_route" && i.Path == "/target" {
+			unregistered = append(unregistered, i)
+		}
+	}
+	require.Len(t, unregistered, 1)
+	assert.Contains(t, unregistered[0].Message, "no matching route")
+}
+
+func TestValidateAgainstRoutes_TargetOnlyPathRegistered(t *testing.T) {
+	resetLinks(t)
+
+	// /target is only a link target but IS in the route set — no issue expected.
+	Link("/source", "related", "/target", "Target")
+
+	routes := []string{"/source", "/target"}
+	issues := ValidateAgainstRoutes(routes)
+
+	var unregistered []LinkIssue
+	for _, i := range issues {
+		if i.Kind == "unregistered_route" {
+			unregistered = append(unregistered, i)
+		}
+	}
+	assert.Empty(t, unregistered, "target-only path in route set should not be flagged")
+}
+
 func TestValidateAgainstRoutes_TargetOnlyPathNotFlagged(t *testing.T) {
 	resetLinks(t)
 
