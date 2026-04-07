@@ -825,7 +825,7 @@ func TestAllLinksMatchRoutes(t *testing.T) {
 
 | Kind                 | Description                                        |
 | -------------------- | -------------------------------------------------- |
-| `unregistered_route` | Registered link path has no matching route          |
+| `unregistered_route` | Link graph path (source or target) has no matching route |
 | `missing_route`      | Route has no link graph presence                    |
 
 ## Sitemap

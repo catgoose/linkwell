@@ -101,8 +101,8 @@ func ValidateAgainstRoutes(routes []string) []LinkIssue {
 		}
 	}
 
-	// Registered paths with no matching route.
-	for path := range all {
+	// Registered paths with no matching route (sources + targets).
+	for path := range graphPaths {
 		if !routeSet[path] {
 			issues = append(issues, LinkIssue{
 				Path:    path,
