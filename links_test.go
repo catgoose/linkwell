@@ -419,13 +419,30 @@ func TestBreadcrumbsFromLinks_SpokeToHub(t *testing.T) {
 
 	crumbs := BreadcrumbsFromLinks("/hub/spoke")
 	require.NotNil(t, crumbs)
-	// [Home, Hub Page, Spoke]
+	// [Home, Hub Page, Spoke Page]
 	require.Len(t, crumbs, 3)
 	assert.Equal(t, BreadcrumbLabelHome, crumbs[0].Label)
 	assert.Equal(t, "/", crumbs[0].Href)
 	assert.Equal(t, "Hub Page", crumbs[1].Label)
 	assert.Equal(t, "/hub", crumbs[1].Href)
-	assert.Equal(t, "Spoke", crumbs[2].Label)
+	assert.Equal(t, "Spoke Page", crumbs[2].Label, "should use registered title, not TitleFromPath")
+	assert.Empty(t, crumbs[2].Href, "current page should not be a link")
+}
+
+func TestBreadcrumbsFromLinks_PreservesRegisteredTitle(t *testing.T) {
+	resetLinks(t)
+
+	Hub("/admin", "Admin", Rel("/admin/users", "User Directory"))
+
+	crumbs := BreadcrumbsFromLinks("/admin/users")
+	require.NotNil(t, crumbs)
+	// [Home, Admin, User Directory]
+	require.Len(t, crumbs, 3)
+	assert.Equal(t, BreadcrumbLabelHome, crumbs[0].Label)
+	assert.Equal(t, "/", crumbs[0].Href)
+	assert.Equal(t, "Admin", crumbs[1].Label)
+	assert.Equal(t, "/admin", crumbs[1].Href)
+	assert.Equal(t, "User Directory", crumbs[2].Label, "should use registered title, not TitleFromPath")
 	assert.Empty(t, crumbs[2].Href, "current page should not be a link")
 }
 
