@@ -830,7 +830,7 @@ func TestAllLinksMatchRoutes(t *testing.T) {
 
 ## Sitemap
 
-Derive a structured sitemap from the link registry. The hub/spoke/ring topology already contains the page hierarchy -- `Sitemap` exposes it as a queryable data type without maintaining a separate definition.
+Derive a structured sitemap from the link registry. The hub/spoke/ring topology already contains the page hierarchy -- `Sitemap` exposes it as a queryable data type without maintaining a separate definition. Target-only pages (paths that appear only as link targets, never as source keys) are included automatically, so every reachable page in the graph has a sitemap entry.
 
 ```go
 // Full sitemap sorted by path
@@ -860,8 +860,8 @@ Each `SitemapEntry` provides:
 
 | Field      | Source                                              |
 | ---------- | --------------------------------------------------- |
-| `Path`     | Registered path                                     |
-| `Title`    | Hub title or derived from path                      |
+| `Path`     | Registered path (includes target-only pages)        |
+| `Title`    | Hub title, registered link title, or derived from path |
 | `Parent`   | `rel="up"` target (empty for roots)                 |
 | `Children` | Hub spoke paths                                     |
 | `Group`    | Ring group name                                     |

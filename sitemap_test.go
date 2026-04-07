@@ -150,6 +150,92 @@ func TestSitemap_HubTitlePreferred(t *testing.T) {
 		"hub title should be preferred over TitleFromPath")
 }
 
+func TestSitemap_TargetOnlyPages(t *testing.T) {
+	resetLinks(t)
+
+	Link("/source", RelUp, "/target", "Custom Target")
+
+	entries := Sitemap()
+	byPath := make(map[string]SitemapEntry, len(entries))
+	for _, e := range entries {
+		byPath[e.Path] = e
+	}
+
+	// Target-only page must appear in the sitemap.
+	require.Contains(t, byPath, "/target")
+	assert.Equal(t, "Custom Target", byPath["/target"].Title,
+		"target-only page should use registered title")
+
+	// Source page should also be present.
+	require.Contains(t, byPath, "/source")
+	assert.Equal(t, "/target", byPath["/source"].Parent,
+		"source should have parent set from rel=up")
+}
+
+func TestSitemap_RegisteredTitlePreferred(t *testing.T) {
+	resetLinks(t)
+
+	// Register a link with a custom title for the target.
+	Link("/docs", RelRelated, "/docs/api", "API Reference")
+
+	entries := Sitemap()
+	byPath := make(map[string]SitemapEntry, len(entries))
+	for _, e := range entries {
+		byPath[e.Path] = e
+	}
+
+	// The target should use the registered title, not TitleFromPath.
+	require.Contains(t, byPath, "/docs/api")
+	assert.Equal(t, "API Reference", byPath["/docs/api"].Title,
+		"registered title should be preferred over TitleFromPath")
+}
+
+func TestSitemap_HubSpokeTitlePreserved(t *testing.T) {
+	resetLinks(t)
+
+	Hub("/settings", "Settings",
+		Rel("/settings/profile", "My Profile"),
+		Rel("/settings/security", "Security Options"),
+	)
+
+	entries := Sitemap()
+	byPath := make(map[string]SitemapEntry, len(entries))
+	for _, e := range entries {
+		byPath[e.Path] = e
+	}
+
+	assert.Equal(t, "My Profile", byPath["/settings/profile"].Title,
+		"hub spoke should preserve its registered title")
+	assert.Equal(t, "Security Options", byPath["/settings/security"].Title,
+		"hub spoke should preserve its registered title")
+}
+
+func TestSitemap_MixedSourceAndTargetPaths(t *testing.T) {
+	resetLinks(t)
+
+	// /a links to /b (target-only) and /c links to /a (so /a is both source and target).
+	Link("/a", RelRelated, "/b", "Page B")
+	Link("/c", RelUp, "/a", "Page A")
+
+	entries := Sitemap()
+	byPath := make(map[string]SitemapEntry, len(entries))
+	for _, e := range entries {
+		byPath[e.Path] = e
+	}
+
+	require.Contains(t, byPath, "/a")
+	require.Contains(t, byPath, "/b")
+	require.Contains(t, byPath, "/c")
+
+	// /a is a target of /c with title "Page A".
+	assert.Equal(t, "Page A", byPath["/a"].Title,
+		"path that is both source and target should use registered title")
+	// /b is target-only with title "Page B".
+	assert.Equal(t, "Page B", byPath["/b"].Title)
+	// /c is source-only, parent is /a.
+	assert.Equal(t, "/a", byPath["/c"].Parent)
+}
+
 // ---------------------------------------------------------------------------
 // SitemapRoots
 // ---------------------------------------------------------------------------
