@@ -283,14 +283,16 @@ The terminal breadcrumb has an empty `Href` (current page, rendered as text).
 
 ### From URL Path
 
-Generate breadcrumbs from URL segments. Override labels by segment index.
+Generate breadcrumbs from URL segments. Each segment is title-cased (hyphens
+become spaces, first letter of each word capitalised). Override labels by
+segment index.
 
 ```go
 crumbs := linkwell.BreadcrumbsFromPath("/users/42/edit", map[int]string{
 	1: "Jane Doe", // override "42" with a name
 })
-// [{Label:"Home" Href:"/"}, {Label:"users" Href:"/users"},
-//  {Label:"Jane Doe" Href:"/users/42"}, {Label:"edit" Href:""}]
+// [{Label:"Home" Href:"/"}, {Label:"Users" Href:"/users"},
+//  {Label:"Jane Doe" Href:"/users/42"}, {Label:"Edit" Href:""}]
 ```
 
 ### Bitmask Breadcrumbs

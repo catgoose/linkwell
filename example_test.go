@@ -197,9 +197,9 @@ func ExampleBreadcrumbsFromPath() {
 	}
 	// Output:
 	// Home (/)
-	// users (/users)
+	// Users (/users)
 	// Jane Doe (/users/42)
-	// [edit]
+	// [Edit]
 }
 
 func ExampleRegisterFrom() {
