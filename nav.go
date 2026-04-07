@@ -145,7 +145,7 @@ func BreadcrumbsFromPath(path string, labels map[int]string) []Breadcrumb {
 	crumbs := make([]Breadcrumb, 0, len(segments)+1)
 	crumbs = append(crumbs, Breadcrumb{Label: BreadcrumbLabelHome, Href: "/"})
 	for i, seg := range segments {
-		label := seg
+		label := TitleFromPath("/" + seg)
 		if l, ok := labels[i]; ok {
 			label = l
 		}

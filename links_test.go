@@ -590,9 +590,9 @@ func TestResolveFromMaskWithPath_FallsBackToPathBreadcrumbs(t *testing.T) {
 	// Fallback path: [Home, users, 42, edit] — Home deduplicated
 	require.Len(t, crumbs, 4)
 	assert.Equal(t, "Home", crumbs[0].Label)
-	assert.Equal(t, "users", crumbs[1].Label)
+	assert.Equal(t, "Users", crumbs[1].Label)
 	assert.Equal(t, "42", crumbs[2].Label)
-	assert.Equal(t, "edit", crumbs[3].Label)
+	assert.Equal(t, "Edit", crumbs[3].Label)
 }
 
 func TestResolveFromMaskWithPath_NoFromParam(t *testing.T) {

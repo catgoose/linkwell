@@ -160,16 +160,16 @@ func TestBreadcrumbsFromPath_SingleSegment(t *testing.T) {
 	crumbs := BreadcrumbsFromPath("/users", nil)
 	require.Len(t, crumbs, 2)
 	require.Equal(t, Breadcrumb{Label: BreadcrumbLabelHome, Href: "/"}, crumbs[0])
-	require.Equal(t, Breadcrumb{Label: "users", Href: ""}, crumbs[1])
+	require.Equal(t, Breadcrumb{Label: "Users", Href: ""}, crumbs[1])
 }
 
 func TestBreadcrumbsFromPath_MultipleSegments(t *testing.T) {
 	crumbs := BreadcrumbsFromPath("/users/42/edit", nil)
 	require.Len(t, crumbs, 4)
 	require.Equal(t, Breadcrumb{Label: BreadcrumbLabelHome, Href: "/"}, crumbs[0])
-	require.Equal(t, Breadcrumb{Label: "users", Href: "/users"}, crumbs[1])
+	require.Equal(t, Breadcrumb{Label: "Users", Href: "/users"}, crumbs[1])
 	require.Equal(t, Breadcrumb{Label: "42", Href: "/users/42"}, crumbs[2])
-	require.Equal(t, Breadcrumb{Label: "edit", Href: ""}, crumbs[3])
+	require.Equal(t, Breadcrumb{Label: "Edit", Href: ""}, crumbs[3])
 }
 
 func TestBreadcrumbsFromPath_WithLabelOverrides(t *testing.T) {
@@ -177,9 +177,9 @@ func TestBreadcrumbsFromPath_WithLabelOverrides(t *testing.T) {
 	crumbs := BreadcrumbsFromPath("/users/42/edit", labels)
 	require.Len(t, crumbs, 4)
 	require.Equal(t, BreadcrumbLabelHome, crumbs[0].Label)
-	require.Equal(t, "users", crumbs[1].Label)
+	require.Equal(t, "Users", crumbs[1].Label)
 	require.Equal(t, "User 42", crumbs[2].Label, "segment index 1 should use override")
-	require.Equal(t, "edit", crumbs[3].Label)
+	require.Equal(t, "Edit", crumbs[3].Label)
 }
 
 func TestBreadcrumbsFromPath_EmptyString(t *testing.T) {
