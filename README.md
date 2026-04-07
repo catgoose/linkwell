@@ -12,6 +12,7 @@
     - [Hub (Star Topology)](#hub-star-topology)
     - [Querying Links](#querying-links)
     - [RFC 8288 Link Header](#rfc-8288-link-header)
+    - [Title From Path](#title-from-path)
     - [Dynamic Links](#dynamic-links)
   - [Breadcrumbs](#breadcrumbs)
     - [From Link Graph](#from-link-graph)
@@ -250,6 +251,21 @@ header := linkwell.LinkHeader(links)
 ```
 
 Named constants cover common IANA relation types: `RelRelated`, `RelUp`, `RelSelf`, `RelAlternate`, `RelCanonical`, `RelFirst`, `RelLast`, `RelNext`, `RelPrev`, `RelCollection`, `RelItem`.
+
+### Title From Path
+
+> A resource is any concept important enough to be named. And naming is the first and most dangerous act of computing.
+>
+> -- The Wisdom of the Uniform Interface
+
+`TitleFromPath` derives a human-readable title from the last segment of a URL path. Hyphens become spaces and each word is title-cased. Useful for auto-generating labels from route paths when no explicit title is registered.
+
+```go
+linkwell.TitleFromPath("/demo/inventory")     // "Inventory"
+linkwell.TitleFromPath("/admin/error-traces")  // "Error Traces"
+```
+
+This is the same logic used internally by `BreadcrumbsFromPath` to label segments.
 
 ### Dynamic Links
 
@@ -514,6 +530,10 @@ selects := group.SelectFields()
 
 ## Tables and Pagination
 
+> "You been repeating yourself since 2013. Every year new hook. Every year same table."
+>
+> -- The Recorded Sayings of Layman Grug
+
 ### Sortable Columns
 
 `SortableCol` creates a column descriptor with sort state and toggle URL precomputed.
@@ -747,6 +767,10 @@ ctrl := linkwell.CatalogRowAction("/products/42/details", "#detail-row-42")
 ```
 
 ## Error Controls
+
+> Guilt is a client-side state and the server does not care about client-side state. The server has never cared about client-side state. This is the First Lesson and also the Last Lesson.
+>
+> -- The PENTAVERB
 
 Status-code-specific control sets for error pages:
 
