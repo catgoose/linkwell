@@ -42,10 +42,23 @@ func Sitemap() []SitemapEntry {
 		hubTitles[h.Path] = h.Title
 	}
 
-	// Collect all unique paths.
+	// Collect all unique paths, including target-only pages.
 	pathSet := make(map[string]bool, len(all))
-	for p := range all {
+	for p, links := range all {
 		pathSet[p] = true
+		for _, l := range links {
+			pathSet[l.Href] = true
+		}
+	}
+
+	// Build registered title map from link targets.
+	registeredTitles := make(map[string]string, len(all))
+	for _, links := range all {
+		for _, l := range links {
+			if l.Title != "" {
+				registeredTitles[l.Href] = l.Title
+			}
+		}
 	}
 
 	paths := make([]string, 0, len(pathSet))
@@ -62,8 +75,10 @@ func Sitemap() []SitemapEntry {
 			Path: p,
 		}
 
-		// Resolve title: prefer hub title, then derive from path.
+		// Resolve title: prefer hub title, then registered title, then derive from path.
 		if t, ok := hubTitles[p]; ok {
+			entry.Title = t
+		} else if t, ok := registeredTitles[p]; ok {
 			entry.Title = t
 		} else {
 			entry.Title = TitleFromPath(p)
