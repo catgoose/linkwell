@@ -925,10 +925,11 @@ concurrent use.
 
 ## Testing
 
-Use `ResetForTesting` to clear all registries between tests. It is intended for
-test setup/teardown only and must not be called concurrently with request
-handlers. In parallel tests, call it at the start of each subtest and register
-it with `t.Cleanup`:
+Use `ResetForTesting` to clear all registries (links, hubs, and
+breadcrumb-origin registrations) between tests. The Home breadcrumb (bit 0) is
+re-registered automatically. It is intended for test setup/teardown only and
+must not be called concurrently with request handlers. In parallel tests, call
+it at the start of each subtest and register it with `t.Cleanup`:
 
 ```go
 func TestMyHandler(t *testing.T) {

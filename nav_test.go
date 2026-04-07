@@ -237,3 +237,28 @@ func TestFromNav(t *testing.T) {
 	require.Equal(t, "/demo/people?from=3", FromNav("/demo/people", "3"))
 	require.Equal(t, "/demo/people?q=foo&from=3", FromNav("/demo/people?q=foo", "3"))
 }
+
+// ---------------------------------------------------------------------------
+// ResetForTesting — fromEntries
+// ---------------------------------------------------------------------------
+
+func TestResetForTesting_ClearsFromEntries(t *testing.T) {
+	ResetForTesting()
+	t.Cleanup(ResetForTesting)
+
+	// Register a custom breadcrumb origin at bit 2.
+	RegisterFrom(FromBit2, Breadcrumb{Label: "Admin", Href: "/admin"})
+
+	// Sanity: the custom entry should resolve.
+	crumbs := ResolveFromMask(uint64(FromBit2))
+	require.Len(t, crumbs, 2, "Home + Admin before reset")
+	require.Equal(t, "Admin", crumbs[1].Label)
+
+	// Reset should discard the custom entry.
+	ResetForTesting()
+
+	crumbs = ResolveFromMask(uint64(FromBit2))
+	require.Len(t, crumbs, 1, "only Home should remain after reset")
+	require.Equal(t, BreadcrumbLabelHome, crumbs[0].Label)
+	require.Equal(t, "/", crumbs[0].Href)
+}
