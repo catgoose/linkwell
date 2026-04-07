@@ -207,6 +207,36 @@ func linksForExact(path string, rels ...string) []LinkRelation {
 	return filtered
 }
 
+// registeredTitleFor returns the title registered for targetPath by checking
+// its parent's links first (via rel="up"), then scanning all registry entries.
+// Returns "" if no registered title is found.
+func registeredTitleFor(targetPath string) string {
+	linksMu.RLock()
+	defer linksMu.RUnlock()
+
+	// Check the immediate parent (via rel="up") for a link targeting this path.
+	for _, l := range linksMap[targetPath] {
+		if l.Rel == RelUp {
+			for _, pl := range linksMap[l.Href] {
+				if pl.Href == targetPath && pl.Title != "" {
+					return pl.Title
+				}
+			}
+		}
+	}
+
+	// Fallback: scan all entries for any link targeting this path with a title.
+	for _, links := range linksMap {
+		for _, l := range links {
+			if l.Href == targetPath && l.Title != "" {
+				return l.Title
+			}
+		}
+	}
+
+	return ""
+}
+
 // hasLink checks if a link with the given href and rel already exists.
 func hasLink(links []LinkRelation, href, rel string) bool {
 	for _, l := range links {
@@ -325,9 +355,14 @@ func BreadcrumbsFromLinks(path string) []Breadcrumb {
 	crumbs = append([]Breadcrumb{{Label: BreadcrumbLabelHome, Href: "/"}}, crumbs...)
 
 	// Add the matched path itself as a breadcrumb (it has rel="up" links,
-	// so it is a known page).
+	// so it is a known page). Prefer the registered title from the parent's
+	// link targeting this path (e.g., Hub spoke titles) over TitleFromPath.
+	label := registeredTitleFor(matchedPath)
+	if label == "" {
+		label = TitleFromPath(matchedPath)
+	}
 	crumbs = append(crumbs, Breadcrumb{
-		Label: TitleFromPath(matchedPath),
+		Label: label,
 		Href:  matchedPath,
 	})
 

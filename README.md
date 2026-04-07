@@ -271,12 +271,12 @@ linkwell.RemoveLink("/projects/42", "/teams/7", "related")
 
 ### From Link Graph
 
-Walk the `rel="up"` chain from a path to build a breadcrumb trail. Requires links registered via `Hub` or `Link` with `rel="up"`.
+Walk the `rel="up"` chain from a path to build a breadcrumb trail. Requires links registered via `Hub` or `Link` with `rel="up"`. Registered titles are preserved -- if a spoke was registered with a custom title, that title appears in the breadcrumb instead of the path-derived label.
 
 ```go
-// Given: Hub("/admin", "Admin", Rel("/admin/users", "Users"))
+// Given: Hub("/admin", "Admin", Rel("/admin/users", "User Directory"))
 crumbs := linkwell.BreadcrumbsFromLinks("/admin/users")
-// [{Label:"Home" Href:"/"}, {Label:"Admin" Href:"/admin"}, {Label:"Users" Href:""}]
+// [{Label:"Home" Href:"/"}, {Label:"Admin" Href:"/admin"}, {Label:"User Directory" Href:""}]
 ```
 
 The terminal breadcrumb has an empty `Href` (current page, rendered as text).
