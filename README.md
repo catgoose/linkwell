@@ -1,5 +1,7 @@
 # linkwell
 
+![image](https://github.com/catgoose/screenshots/blob/main/linkwell/linkwell.png)
+
 <!--toc:start-->
 
 - [linkwell](#linkwell)
