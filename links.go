@@ -428,11 +428,12 @@ func RemoveLink(source, href, rel string) bool {
 	return false
 }
 
-// ResetForTesting clears all entries from the global link and hub registries.
-// Intended for use in test setup/teardown only — not safe to call in production
-// while handlers may be reading the registry. In parallel tests, call
-// ResetForTesting at the start of each subtest and register it with t.Cleanup
-// to avoid cross-test pollution.
+// ResetForTesting clears all entries from the global link, hub, and
+// breadcrumb-origin registries. The Home breadcrumb (bit 0) is re-registered
+// automatically. Intended for use in test setup/teardown only — not safe to
+// call in production while handlers may be reading the registry. In parallel
+// tests, call ResetForTesting at the start of each subtest and register it
+// with t.Cleanup to avoid cross-test pollution.
 func ResetForTesting() {
 	linksMu.Lock()
 	linksMap = make(map[string][]LinkRelation)
@@ -440,4 +441,7 @@ func ResetForTesting() {
 	hubsMu.Lock()
 	hubsMap = make(map[string]string)
 	hubsMu.Unlock()
+	fromMu.Lock()
+	fromEntries = []fromEntry{{bit: FromHome, crumb: Breadcrumb{Label: BreadcrumbLabelHome, Href: "/"}}}
+	fromMu.Unlock()
 }
