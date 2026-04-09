@@ -484,6 +484,38 @@ func TestBreadcrumbsFromLinks_IncludesHomeAndCurrent(t *testing.T) {
 	assert.Empty(t, last.Href, "last crumb should not be a link")
 }
 
+// Regression test for #54: when a page's rel="up" chain points directly to
+// the root path ("/"), BreadcrumbsFromLinks must not emit a duplicate Home
+// crumb by unconditionally prepending one on top of the walked chain.
+func TestBreadcrumbsFromLinks_NoDuplicateHomeWhenParentIsRoot(t *testing.T) {
+	resetLinks(t)
+
+	// Register a page whose rel="up" link points directly to "/" with a
+	// registered title of "Home" for the root path.
+	linksMu.Lock()
+	linksMap["/about"] = []LinkRelation{{Rel: "up", Href: "/", Title: "Home"}}
+	linksMu.Unlock()
+
+	crumbs := BreadcrumbsFromLinks("/about")
+	require.NotNil(t, crumbs)
+
+	// There must be exactly one breadcrumb targeting "/".
+	rootCount := 0
+	for _, c := range crumbs {
+		if c.Href == "/" {
+			rootCount++
+		}
+	}
+	assert.Equal(t, 1, rootCount, "should have exactly one breadcrumb with Href == \"/\"")
+
+	// Trail should be: [Home, About] with About as terminal crumb.
+	require.Len(t, crumbs, 2)
+	assert.Equal(t, BreadcrumbLabelHome, crumbs[0].Label)
+	assert.Equal(t, "/", crumbs[0].Href)
+	assert.Equal(t, "About", crumbs[1].Label)
+	assert.Empty(t, crumbs[1].Href, "current page should not be a link")
+}
+
 // ---------------------------------------------------------------------------
 // BreadcrumbsFromLinks — path walk-up (#13)
 // ---------------------------------------------------------------------------
