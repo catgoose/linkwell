@@ -42,6 +42,28 @@ func TestValidateGraph_Orphan(t *testing.T) {
 	assert.Contains(t, orphans[0].Message, "no inbound links")
 }
 
+func TestValidateGraph_SelfLinkIsOrphan(t *testing.T) {
+	resetLinks(t)
+
+	// /foo's only "inbound" link is a self-link — it should still be
+	// flagged as an orphan because self-links don't count as inbound.
+	linksMu.Lock()
+	linksMap["/foo"] = []LinkRelation{
+		{Rel: RelRelated, Href: "/foo", Title: "Foo"},
+	}
+	linksMu.Unlock()
+
+	issues := ValidateGraph()
+	var orphans []LinkIssue
+	for _, i := range issues {
+		if i.Kind == "orphan" && i.Path == "/foo" {
+			orphans = append(orphans, i)
+		}
+	}
+	require.Len(t, orphans, 1, "self-linked page should be flagged as orphan")
+	assert.Contains(t, orphans[0].Message, "no inbound links")
+}
+
 func TestValidateGraph_BrokenUp(t *testing.T) {
 	resetLinks(t)
 
