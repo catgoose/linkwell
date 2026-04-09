@@ -408,6 +408,69 @@ func TestHubs_SpokesSortedByTitle(t *testing.T) {
 	assert.Equal(t, "Zebra", hubs[0].Spokes[2].Title)
 }
 
+// TestHubs_DoesNotInheritParentSpokes is a regression test for #53. A hub
+// center whose exact path has no registered RelRelated links must not fall
+// back to an ancestor's related links via the LinksFor walk-up behavior.
+func TestHubs_DoesNotInheritParentSpokes(t *testing.T) {
+	t.Run("empty child hub does not inherit parent related links", func(t *testing.T) {
+		resetLinks(t)
+
+		// Parent path has related links.
+		Link("/foo", RelRelated, "/foo-related", "Foo Related")
+
+		// Child is registered as a hub but has no spokes of its own.
+		Hub("/foo/bar", "Foo Bar")
+
+		hubs := Hubs()
+		var child *HubEntry
+		for i := range hubs {
+			if hubs[i].Path == "/foo/bar" {
+				child = &hubs[i]
+				break
+			}
+		}
+		require.NotNil(t, child, "hub /foo/bar must be present in Hubs()")
+		assert.Empty(t, child.Spokes,
+			"child hub must not inherit parent related links")
+		for _, s := range child.Spokes {
+			assert.NotEqual(t, "/foo-related", s.Href,
+				"child hub must not include parent related spoke")
+		}
+	})
+
+	t.Run("child hub with exact spokes still returns them", func(t *testing.T) {
+		resetLinks(t)
+
+		// Parent has unrelated related links that must not leak in.
+		Link("/foo", RelRelated, "/foo-related", "Foo Related")
+
+		// Child hub has its own spokes.
+		Hub("/foo/bar", "Foo Bar",
+			Rel("/foo/bar/s1", "Spoke One"),
+			Rel("/foo/bar/s2", "Spoke Two"),
+		)
+
+		hubs := Hubs()
+		var child *HubEntry
+		for i := range hubs {
+			if hubs[i].Path == "/foo/bar" {
+				child = &hubs[i]
+				break
+			}
+		}
+		require.NotNil(t, child, "hub /foo/bar must be present in Hubs()")
+		require.Len(t, child.Spokes, 2)
+		hrefs := map[string]bool{}
+		for _, s := range child.Spokes {
+			hrefs[s.Href] = true
+		}
+		assert.True(t, hrefs["/foo/bar/s1"])
+		assert.True(t, hrefs["/foo/bar/s2"])
+		assert.False(t, hrefs["/foo-related"],
+			"parent related link must not leak into child hub spokes")
+	})
+}
+
 // ---------------------------------------------------------------------------
 // BreadcrumbsFromLinks
 // ---------------------------------------------------------------------------

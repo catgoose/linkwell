@@ -290,7 +290,7 @@ func Hubs() []HubEntry {
 
 	entries := make([]HubEntry, 0, len(paths))
 	for _, p := range paths {
-		spokes := LinksFor(p, RelRelated)
+		spokes := linksForExact(p, RelRelated)
 		sort.Slice(spokes, func(i, j int) bool {
 			return spokes[i].Title < spokes[j].Title
 		})
