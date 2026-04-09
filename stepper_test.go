@@ -150,3 +150,156 @@ func TestStepStatusConstants(t *testing.T) {
 	require.Equal(t, StepStatus("complete"), StepComplete)
 	require.Equal(t, StepStatus("skipped"), StepSkipped)
 }
+
+func TestNewStepper_NegativeIndexClampsToZero(t *testing.T) {
+	stepper := NewStepper(-1,
+		Step{Label: "Account", Href: "/onboard/account"},
+		Step{Label: "Profile", Href: "/onboard/profile"},
+		Step{Label: "Review", Href: "/onboard/review"},
+	)
+
+	require.Len(t, stepper.Steps, 3)
+	require.Equal(t, 0, stepper.Current)
+
+	// Behaves as if currentIndex == 0.
+	require.Equal(t, StepActive, stepper.Steps[0].Status)
+	require.Equal(t, StepPending, stepper.Steps[1].Status)
+	require.Equal(t, StepPending, stepper.Steps[2].Status)
+
+	// No Prev on first step.
+	require.Nil(t, stepper.Prev)
+
+	// Next points to step 1.
+	require.NotNil(t, stepper.Next)
+	require.Equal(t, "/onboard/profile", stepper.Next.Href)
+
+	// Not the last step, so no Submit.
+	require.Nil(t, stepper.Submit)
+
+	// Exactly one Active step.
+	requireExactlyOneActive(t, stepper.Steps)
+}
+
+func TestNewStepper_NegativeIndexSingleStep(t *testing.T) {
+	stepper := NewStepper(-5,
+		Step{Label: "Only Step", Href: "/only"},
+	)
+
+	require.Len(t, stepper.Steps, 1)
+	require.Equal(t, 0, stepper.Current)
+	require.Equal(t, StepActive, stepper.Steps[0].Status)
+
+	// Single step: no Prev, no Next.
+	require.Nil(t, stepper.Prev)
+	require.Nil(t, stepper.Next)
+
+	// Single step is also the last step, so Submit is present.
+	require.NotNil(t, stepper.Submit)
+	require.Equal(t, LabelSubmit, stepper.Submit.Label)
+}
+
+func TestNewStepper_IndexEqualsLenClampsToLast(t *testing.T) {
+	stepper := NewStepper(3,
+		Step{Label: "Account", Href: "/onboard/account"},
+		Step{Label: "Profile", Href: "/onboard/profile"},
+		Step{Label: "Review", Href: "/onboard/review"},
+	)
+
+	require.Len(t, stepper.Steps, 3)
+	require.Equal(t, 2, stepper.Current)
+
+	// Behaves as if currentIndex == len(steps)-1.
+	require.Equal(t, StepComplete, stepper.Steps[0].Status)
+	require.Equal(t, StepComplete, stepper.Steps[1].Status)
+	require.Equal(t, StepActive, stepper.Steps[2].Status)
+
+	// Prev points to step 1.
+	require.NotNil(t, stepper.Prev)
+	require.Equal(t, "/onboard/profile", stepper.Prev.Href)
+
+	// Last step: no Next.
+	require.Nil(t, stepper.Next)
+
+	// Submit present on last step.
+	require.NotNil(t, stepper.Submit)
+	require.Equal(t, LabelSubmit, stepper.Submit.Label)
+	require.Equal(t, "/onboard/review", stepper.Submit.Href)
+	require.Equal(t, VariantPrimary, stepper.Submit.Variant)
+
+	requireExactlyOneActive(t, stepper.Steps)
+}
+
+func TestNewStepper_IndexFarPastEndClampsToLast(t *testing.T) {
+	stepper := NewStepper(100,
+		Step{Label: "Account", Href: "/onboard/account"},
+		Step{Label: "Profile", Href: "/onboard/profile"},
+		Step{Label: "Review", Href: "/onboard/review"},
+	)
+
+	require.Len(t, stepper.Steps, 3)
+	require.Equal(t, 2, stepper.Current)
+
+	require.Equal(t, StepComplete, stepper.Steps[0].Status)
+	require.Equal(t, StepComplete, stepper.Steps[1].Status)
+	require.Equal(t, StepActive, stepper.Steps[2].Status)
+
+	require.NotNil(t, stepper.Prev)
+	require.Equal(t, "/onboard/profile", stepper.Prev.Href)
+	require.Nil(t, stepper.Next)
+	require.NotNil(t, stepper.Submit)
+	require.Equal(t, "/onboard/review", stepper.Submit.Href)
+
+	requireExactlyOneActive(t, stepper.Steps)
+}
+
+func TestNewStepper_EmptySteps(t *testing.T) {
+	require.NotPanics(t, func() {
+		stepper := NewStepper(0)
+
+		require.NotNil(t, stepper.Steps)
+		require.Empty(t, stepper.Steps)
+		require.Equal(t, 0, stepper.Current)
+		require.Nil(t, stepper.Prev)
+		require.Nil(t, stepper.Next)
+		require.Nil(t, stepper.Submit)
+	})
+}
+
+func TestNewStepper_EmptyStepsNegativeIndex(t *testing.T) {
+	require.NotPanics(t, func() {
+		stepper := NewStepper(-3)
+
+		require.NotNil(t, stepper.Steps)
+		require.Empty(t, stepper.Steps)
+		require.Equal(t, 0, stepper.Current)
+		require.Nil(t, stepper.Prev)
+		require.Nil(t, stepper.Next)
+		require.Nil(t, stepper.Submit)
+	})
+}
+
+func TestNewStepper_EmptyStepsPositiveIndex(t *testing.T) {
+	require.NotPanics(t, func() {
+		stepper := NewStepper(5)
+
+		require.NotNil(t, stepper.Steps)
+		require.Empty(t, stepper.Steps)
+		require.Equal(t, 0, stepper.Current)
+		require.Nil(t, stepper.Prev)
+		require.Nil(t, stepper.Next)
+		require.Nil(t, stepper.Submit)
+	})
+}
+
+// requireExactlyOneActive asserts that exactly one step in the slice has
+// StepActive status, confirming internal consistency of the stepper config.
+func requireExactlyOneActive(t *testing.T, steps []Step) {
+	t.Helper()
+	count := 0
+	for _, s := range steps {
+		if s.Status == StepActive {
+			count++
+		}
+	}
+	require.Equal(t, 1, count, "expected exactly one Active step, got %d", count)
+}

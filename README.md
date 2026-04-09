@@ -671,6 +671,8 @@ stepper := linkwell.NewStepper(1, // currently on step 2 (0-indexed)
 - `Next` control points to the next step (nil on last)
 - `Submit` control appears only on the final step (with `VariantPrimary`)
 
+Invalid `currentIndex` values are clamped into the valid range `[0, len(steps)-1]`. Empty steps return an empty config with no navigation controls.
+
 ## Action Patterns
 
 > HATEOAS: Hypermedia As The Engine Of Application State. Yes, it is an ugly acronym. The truth is not always beautiful. Sometimes the truth is an ugly acronym that you should have tattooed on the inside of your eyelids.
