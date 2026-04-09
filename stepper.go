@@ -60,7 +60,22 @@ type StepperConfig struct {
 // Navigation controls are auto-generated: Prev points to the previous step's
 // Href (nil on the first step), Next points to the next step's Href (nil on
 // the last step), and Submit is generated only on the final step.
+//
+// Invalid currentIndex values are clamped into the valid range
+// [0, len(steps)-1]. Empty steps return an empty config with no navigation
+// controls.
 func NewStepper(currentIndex int, steps ...Step) StepperConfig {
+	if len(steps) == 0 {
+		return StepperConfig{Steps: []Step{}, Current: 0}
+	}
+
+	if currentIndex < 0 {
+		currentIndex = 0
+	}
+	if currentIndex >= len(steps) {
+		currentIndex = len(steps) - 1
+	}
+
 	out := make([]Step, len(steps))
 	copy(out, steps)
 
