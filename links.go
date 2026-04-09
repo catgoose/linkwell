@@ -351,8 +351,10 @@ func BreadcrumbsFromLinks(path string) []Breadcrumb {
 		current = parent.Href
 	}
 
-	// Add home at the start.
-	crumbs = append([]Breadcrumb{{Label: BreadcrumbLabelHome, Href: "/"}}, crumbs...)
+	// Add home at the start, unless the walked chain already includes it.
+	if len(crumbs) == 0 || crumbs[0].Href != "/" {
+		crumbs = append([]Breadcrumb{{Label: BreadcrumbLabelHome, Href: "/"}}, crumbs...)
+	}
 
 	// Add the matched path itself as a breadcrumb (it has rel="up" links,
 	// so it is a known page). Prefer the registered title from the parent's
