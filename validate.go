@@ -25,9 +25,13 @@ func ValidateGraph() []LinkIssue {
 	var issues []LinkIssue
 
 	// Build set of all paths that are link targets (inbound links).
+	// Self-links do not count: orphan means no inbound links from any OTHER path.
 	inbound := make(map[string]bool)
-	for _, links := range all {
+	for source, links := range all {
 		for _, l := range links {
+			if l.Href == source {
+				continue
+			}
 			inbound[l.Href] = true
 		}
 	}
