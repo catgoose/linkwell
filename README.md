@@ -451,11 +451,9 @@ Both functions handle nested children: a parent is marked active if any child ma
 
 ## Tabs
 
-> Student ask Grug: "what is the way of the hypermedia?"
+> _How many web browsers know the difference between a banking application and a wiki? None of them. And yet they operate both. Your browser speaks HTTP, understands media types, and follows links. Three things._
 >
-> Grug say: "server return html. browser render html. what is difficult?"
->
-> -- The Recorded Sayings of Layman Grug
+> -- The Wisdom of the Uniform Interface
 
 `TabConfig` and `TabItem` describe in-page tabbed navigation. Structurally similar to `NavItem` but scoped to a content panel with HTMX lazy-load semantics. The server decides which tabs exist and which is active.
 
@@ -612,9 +610,13 @@ modal := linkwell.ReportIssueModal(requestID)
 
 ## Toasts
 
-> THE FOOL deleted the API client. THE FOOL deleted the route constants. THE FOOL wrote an `<a>` tag. The browser followed it. It worked.
+> _past is already past -- don't debug it_
 >
-> -- The Dothog Manifesto
+> _future not here yet -- don't optimize for it_
+>
+> _server return html -- this present moment_
+>
+> -- The Recorded Sayings of Layman Grug, [The Dothog Manifesto](https://github.com/catgoose/dothog/blob/main/MANIFESTO.md)
 
 `Toast` is the success/info/warning complement to `ErrorContext`. The server decides what feedback to show and the template renders the appropriate notification. Toasts are value types -- use the `With*` methods to derive modified copies.
 
@@ -646,9 +648,9 @@ toast := linkwell.SuccessToast("User deleted").
 
 ## Stepper
 
-> grug supernatural power and marvelous activity: returning html and carrying single binary.
+> _The client receives a page, sees what it can do, and does it. Like a person. Using a website._
 >
-> -- The Recorded Sayings of Layman Grug
+> -- The Wisdom of the Uniform Interface
 
 `StepperConfig` describes a multi-step wizard flow where the server knows the full step sequence, current position, and completion state. Navigation controls are auto-generated.
 
@@ -979,15 +981,11 @@ See [recipes.md](recipes.md) for integration patterns showing linkwell and [tave
 
 ## Philosophy
 
-> THE FOOL deleted the route constants. THE FOOL deleted the URL builder. THE FOOL deleted the TypeScript interfaces. THE FOOL wrote an `<a>` tag. The browser followed it. It worked. It had always worked.
+> _THE FOOL asked: "What is HATEOAS?" Hypermedia As The Engine Of Application State. The server sends a representation. The representation contains links and forms. The client follows them. THAT IS THE ENTIRE INTERACTION MODEL._
 >
-> -- The Dothog Manifesto
+> -- The Wisdom of the Uniform Interface
 
-linkwell follows the [dothog design philosophy](https://github.com/catgoose/dothog/blob/main/PHILOSOPHY.md): the server is the source of truth for navigation, the link registry is just a data structure, and templates consume pure data -- no rendering logic in the library.
-
-The whole point of hypermedia is that the server tells the client what to do next IN THE RESPONSE ITSELF. linkwell is the vocabulary for expressing that. Register your link graph once, query it at request time, and let the controls carry the server's decisions to the HTML. The client receives a page, sees what it can do, and does it. Like a person. Using a website.
-
-Grug's supernatural power and marvelous activity: returning HTML and carrying a single binary.
+linkwell is that interaction model, made concrete in Go. The server decides what controls to present. The representation carries them. The client follows them. linkwell follows the [dothog design philosophy](https://github.com/catgoose/dothog/blob/main/PHILOSOPHY.md).
 
 ## Architecture
 
