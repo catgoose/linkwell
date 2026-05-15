@@ -51,16 +51,6 @@ func Sitemap() []SitemapEntry {
 		}
 	}
 
-	// Build registered title map from link targets.
-	registeredTitles := make(map[string]string, len(all))
-	for _, links := range all {
-		for _, l := range links {
-			if l.Title != "" {
-				registeredTitles[l.Href] = l.Title
-			}
-		}
-	}
-
 	paths := make([]string, 0, len(pathSet))
 	for p := range pathSet {
 		paths = append(paths, p)
@@ -75,10 +65,11 @@ func Sitemap() []SitemapEntry {
 			Path: p,
 		}
 
-		// Resolve title: prefer hub title, then registered title, then derive from path.
+		// Resolve title: prefer hub title, then best registered incoming title,
+		// then derive from the path.
 		if t, ok := hubTitles[p]; ok {
 			entry.Title = t
-		} else if t, ok := registeredTitles[p]; ok {
+		} else if t := registeredTitleForMap(p, all); t != "" {
 			entry.Title = t
 		} else {
 			entry.Title = TitleFromPath(p)
