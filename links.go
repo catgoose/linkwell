@@ -207,34 +207,66 @@ func linksForExact(path string, rels ...string) []LinkRelation {
 	return filtered
 }
 
-// registeredTitleFor returns the title registered for targetPath by checking
-// its parent's links first (via rel="up"), then scanning all registry entries.
-// Returns "" if no registered title is found.
+// registeredTitleFor returns the best registered title for targetPath. It
+// prefers the title from the page's parent link back to the page, then any
+// incoming rel="up" title, then other incoming non-related titles, and finally
+// incoming rel="related" titles. Returns "" if no registered title is found.
 func registeredTitleFor(targetPath string) string {
 	linksMu.RLock()
 	defer linksMu.RUnlock()
 
-	// Check the immediate parent (via rel="up") for a link targeting this path.
-	for _, l := range linksMap[targetPath] {
-		if l.Rel == RelUp {
-			for _, pl := range linksMap[l.Href] {
-				if pl.Href == targetPath && pl.Title != "" {
-					return pl.Title
-				}
+	return registeredTitleForMap(targetPath, linksMap)
+}
+
+func registeredTitleForMap(targetPath string, all map[string][]LinkRelation) string {
+	// If this page has a parent, prefer the parent's label for the page. This
+	// preserves spoke/child titles over generic path-derived inverse titles.
+	for _, l := range all[targetPath] {
+		if l.Rel != RelUp {
+			continue
+		}
+		for _, pl := range all[l.Href] {
+			if pl.Href == targetPath && pl.Title != "" {
+				return pl.Title
 			}
 		}
 	}
 
-	// Fallback: scan all entries for any link targeting this path with a title.
-	for _, links := range linksMap {
+	sources := make([]string, 0, len(all))
+	for source := range all {
+		sources = append(sources, source)
+	}
+	sort.Strings(sources)
+
+	var nonRelatedTitle string
+	var relatedTitle string
+
+	// Fallback: scan all incoming links with relation-aware precedence.
+	for _, source := range sources {
+		links := all[source]
 		for _, l := range links {
-			if l.Href == targetPath && l.Title != "" {
+			if l.Href != targetPath || l.Title == "" {
+				continue
+			}
+			if l.Rel == RelUp {
 				return l.Title
 			}
+			if l.Rel == RelRelated {
+				if relatedTitle == "" {
+					relatedTitle = l.Title
+				}
+				continue
+			}
+			if nonRelatedTitle == "" {
+				nonRelatedTitle = l.Title
+			}
 		}
 	}
 
-	return ""
+	if nonRelatedTitle != "" {
+		return nonRelatedTitle
+	}
+	return relatedTitle
 }
 
 // hasLink checks if a link with the given href and rel already exists.

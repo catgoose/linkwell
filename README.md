@@ -575,6 +575,79 @@ Generate a URL for a specific page:
 url := info.URLForPage(3) // "/users?q=foo&page=3"
 ```
 
+#### Page-size selector (HTMX companion)
+
+`PaginationControls` owns page-button generation. The per-page `<select>` and
+the hidden-state contract for filters stay in the application — linkwell does
+not render the selector, but the selector should reuse `PageInfo.Target`,
+`PageInfo.Include`, and the same page-parameter name (`page` by default, or
+`PageInfo.PageParam` if you override it).
+
+Render the selector as a sibling of the table, pointing at the same target and
+including the same filter form that `PageInfo.Include` references:
+
+```html
+<form id="filter-form" hx-get="/users" hx-target="#user-table" hx-push-url="true">
+  <input type="hidden" name="q"      value="{{ .Query }}">
+  <input type="hidden" name="role"   value="{{ .Role }}">
+  <input type="hidden" name="status" value="{{ .Status }}">
+</form>
+
+<label for="per-page">Per page</label>
+<select id="per-page" name="limit"
+        hx-get="/users"
+        hx-target="#user-table"
+        hx-include="#filter-form"
+        hx-push-url="true"
+        hx-vals='{"page": "1"}'
+        hx-trigger="change">
+  <option value="10"  {{ if eq .PerPage 10  }}selected{{ end }}>10</option>
+  <option value="25"  {{ if eq .PerPage 25  }}selected{{ end }}>25</option>
+  <option value="50"  {{ if eq .PerPage 50  }}selected{{ end }}>50</option>
+  <option value="100" {{ if eq .PerPage 100 }}selected{{ end }}>100</option>
+</select>
+```
+
+If the surface uses `hx-replace-url` instead of `hx-push-url`, keep that
+choice aligned between the selector and the rest of the pagination UI.
+
+Pair it with `PageInfo` that uses the same target and include selector:
+
+```go
+info := linkwell.PageInfo{
+    BaseURL:    "/users",
+    Page:       page,
+    PerPage:    perPage,
+    TotalItems: total,
+    TotalPages: linkwell.ComputeTotalPages(total, perPage),
+    Target:     "#user-table",
+    Include:    "#filter-form",
+}
+controls := linkwell.PaginationControls(info)
+```
+
+Why each piece exists:
+
+- `hx-include="#filter-form"` pulls current filter values from the filter form
+  on every limit change. The same selector goes into `PageInfo.Include`, so
+  page buttons and the size selector forward identical state.
+- `hx-vals='{"page": "1"}'` resets the page parameter on every limit change.
+  Without it, a user on page 12 of 20 (`limit=10`) who switches to `limit=50`
+  would request page 12 of a 4-page result set. If you set
+  `PageInfo.PageParam`, use that parameter name in `hx-vals` instead of
+  `page`.
+- `hx-target` matches `PageInfo.Target` so both controls swap the same
+  fragment. The filter form lives outside `#user-table`, so its hidden state
+  persists across table swaps.
+- `hx-push-url` (or `hx-replace-url`) should match the history behavior used by
+  the rest of the surface so pagination buttons and the size selector update
+  the browser URL consistently.
+- Hidden `<input>` entries carry filter state that the server already has but
+  the next request needs to see. Server handlers read `limit` as a normal
+  query parameter and recompute `PageInfo` from it.
+
+See [recipes.md](recipes.md) for a fuller list-surface example.
+
 ## Modals
 
 `ModalConfig` describes everything needed to render a modal dialog.

@@ -83,14 +83,74 @@ cols := []linkwell.TableCol{
 pageInfo := linkwell.PageInfo{
     BaseURL:    "/users",
     Page:       page,
-    PerPage:    25,
+    PerPage:    perPage,
     TotalItems: totalUsers,
-    TotalPages: linkwell.ComputeTotalPages(totalUsers, 25),
+    TotalPages: linkwell.ComputeTotalPages(totalUsers, perPage),
     Target:     "#user-table",
     Include:    "#filter-form",
 }
 pagination := linkwell.PaginationControls(pageInfo)
 ```
+
+### Page-size selector + preserved filter state
+
+linkwell generates the page buttons. The per-page `<select>` and the hidden
+inputs that preserve filter state across partial swaps stay in the application
+template. The contract is: same `hx-target`, same `hx-include`, same history
+behavior (`hx-push-url` or `hx-replace-url`), and `hx-vals` resetting whatever
+page parameter `PageInfo` uses (`page` by default).
+
+```html
+<form id="filter-form"
+      hx-get="/users"
+      hx-target="#user-table"
+      hx-push-url="true">
+  <!-- Visible filter inputs (rendered from linkwell.FilterBar). -->
+  <input type="search" name="q"      value="{{ .Query }}"  placeholder="Search users…">
+  <select name="role">…</select>
+  <select name="status">…</select>
+
+  <!-- Hidden state that must survive partial swaps but is not user-edited
+       on this surface (e.g., the active sort column). The table swap
+       replaces #user-table only; the form persists, so these stay set. -->
+  <input type="hidden" name="sort" value="{{ .SortKey }}">
+  <input type="hidden" name="dir"  value="{{ .SortDir }}">
+</form>
+
+<label for="per-page">Per page</label>
+<select id="per-page" name="limit"
+        hx-get="/users"
+        hx-target="#user-table"
+        hx-include="#filter-form"
+        hx-push-url="true"
+        hx-vals='{"page": "1"}'
+        hx-trigger="change">
+  <option value="10"  {{ if eq .PerPage 10  }}selected{{ end }}>10</option>
+  <option value="25"  {{ if eq .PerPage 25  }}selected{{ end }}>25</option>
+  <option value="50"  {{ if eq .PerPage 50  }}selected{{ end }}>50</option>
+  <option value="100" {{ if eq .PerPage 100 }}selected{{ end }}>100</option>
+</select>
+
+<div id="user-table">
+  <!-- table + linkwell.PaginationControls rendered here; swap replaces this div -->
+</div>
+```
+
+If the surface uses `hx-replace-url` instead, mirror that choice on both the
+form and the selector.
+
+Boundary:
+
+- **linkwell** owns the page-button slice (`PaginationControls`) and the URL
+  builder (`PageInfo.URLForPage`). Page buttons read `PageInfo.Target` and
+  `PageInfo.Include` to forward filter state.
+- **Application** owns the page-size `<select>`, its `hx-include` selector
+  string, the hidden inputs that carry non-edited state across swaps, and the
+  `hx-vals='{"page": "1"}'` reset on limit change.
+
+Server handler reads `limit` like any other query parameter and feeds it into
+`PageInfo.PerPage`. If you override `PageInfo.PageParam`, use that parameter
+name in the selector's `hx-vals`. No new linkwell API is involved.
 
 ### Row actions
 
