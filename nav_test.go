@@ -111,6 +111,65 @@ func TestSetActiveNavItemPrefix_NoMatch(t *testing.T) {
 	}
 }
 
+func TestSetActiveNavItemPrefix_FlatSiblingLongestWins(t *testing.T) {
+	// Issue #63: /app/sales-goals/agents must activate only Agents, not Dashboard.
+	items := []NavItem{
+		{Label: "Dashboard", Href: "/app/sales-goals"},
+		{Label: "Agents", Href: "/app/sales-goals/agents"},
+	}
+	result := SetActiveNavItemPrefix(items, "/app/sales-goals/agents")
+	require.False(t, result[0].Active, "Dashboard (shorter prefix) should not be active")
+	require.True(t, result[1].Active, "Agents (longest match) should be active")
+}
+
+func TestSetActiveNavItemPrefix_ExactBeatsShorterPrefix(t *testing.T) {
+	items := []NavItem{
+		{Label: "Sales Goals", Href: "/app/sales-goals"},
+		{Label: "App", Href: "/app"},
+	}
+	result := SetActiveNavItemPrefix(items, "/app/sales-goals")
+	require.True(t, result[0].Active, "exact match should win")
+	require.False(t, result[1].Active, "shorter prefix should not be active")
+}
+
+func TestSetActiveNavItemPrefix_SegmentBoundaryNotSubstring(t *testing.T) {
+	// /agents must not activate for /agents-old.
+	items := []NavItem{
+		{Label: "Agents", Href: "/agents"},
+	}
+	result := SetActiveNavItemPrefix(items, "/agents-old")
+	require.False(t, result[0].Active, "/agents must not match /agents-old")
+}
+
+func TestSetActiveNavItemPrefix_RootNotActiveForEveryRoute(t *testing.T) {
+	items := []NavItem{
+		{Label: BreadcrumbLabelHome, Href: "/"},
+		{Label: "Users", Href: "/users"},
+	}
+	result := SetActiveNavItemPrefix(items, "/users/42")
+	require.False(t, result[0].Active, "root / should not be active for /users/42")
+	require.True(t, result[1].Active, "Users should be active")
+}
+
+func TestSetActiveNavItemPrefix_ChildBubblesDespiteSiblingWinner(t *testing.T) {
+	// A sibling with a longer self-match must not suppress a parent activated
+	// by its own active child.
+	items := []NavItem{
+		{
+			Label: "Reports",
+			Href:  "/app/reports",
+			Children: []NavItem{
+				{Label: "Monthly", Href: "/app/reports/monthly"},
+			},
+		},
+		{Label: "Reports Archive", Href: "/app/reports-archive"},
+	}
+	result := SetActiveNavItemPrefix(items, "/app/reports/monthly")
+	require.True(t, result[0].Active, "parent Reports active via child")
+	require.True(t, result[0].Children[0].Active, "child Monthly active via prefix")
+	require.False(t, result[1].Active, "unrelated sibling not active")
+}
+
 func TestSetActiveNavItemPrefix_ChildPrefixMatchActivatesParent(t *testing.T) {
 	items := []NavItem{
 		{
