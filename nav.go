@@ -95,26 +95,40 @@ func SetActiveNavItem(items []NavItem, currentPath string) []NavItem {
 }
 
 // SetActiveNavItemPrefix sets the Active flag using longest-prefix matching.
-// An item is active if the current path equals its Href or starts with Href
-// followed by "/". Use for section-level navigation where /users should be
-// active when the path is /users/42/edit. A parent is marked active if any
-// child matches. Returns a new slice; the input is not modified.
+// An item self-matches when the current path equals its Href or starts with
+// Href followed by "/". Among sibling items, only the single best self-match
+// wins: exact match, else the longest path-segment-bounded prefix, so flat
+// siblings like /app/sales-goals and /app/sales-goals/agents never activate
+// together. A parent is also marked active if any child matches, independent
+// of sibling selection. Use for section-level navigation where /users should
+// be active when the path is /users/42/edit. Returns a new slice; the input is
+// not modified.
 func SetActiveNavItemPrefix(items []NavItem, currentPath string) []NavItem {
 	result := make([]NavItem, len(items))
+	bestIdx := -1
+	bestLen := -1
 	for i, item := range items {
 		item.Children = SetActiveNavItemPrefix(item.Children, currentPath)
+		result[i] = item
+		// Require href+separator to avoid "/" matching every path. Longer Href
+		// means a deeper segment-bounded prefix (exact match is longest), so
+		// len comparison picks the best sibling; ties keep the first item.
+		if item.Href != "" &&
+			(currentPath == item.Href || strings.HasPrefix(currentPath, item.Href+"/")) &&
+			len(item.Href) > bestLen {
+			bestLen = len(item.Href)
+			bestIdx = i
+		}
+	}
+	for i := range result {
 		childActive := false
-		for _, child := range item.Children {
+		for _, child := range result[i].Children {
 			if child.Active {
 				childActive = true
 				break
 			}
 		}
-		// Require href+separator to avoid "/" matching every path.
-		isActive := item.Href != "" &&
-			(currentPath == item.Href || strings.HasPrefix(currentPath, item.Href+"/"))
-		item.Active = isActive || childActive
-		result[i] = item
+		result[i].Active = i == bestIdx || childActive
 	}
 	return result
 }
