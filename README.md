@@ -366,6 +366,39 @@ href := linkwell.FromNav("/users/42", c.QueryParam("from"))
 // "/users/42?from=3" if mask was 3
 ```
 
+### Return Targets
+
+Breadcrumbs and `?from=` describe *origin context* for display; they are not a
+safe place to redirect to. Two navigation concepts are distinct:
+
+- **Canonical parent/back** is structural and server-owned: the durable "up"
+  destination for a page, independent of how the user arrived.
+- **Exact return** is request-specific: the precise page a journey should return
+  to, carried in a query parameter (default `back_to`).
+
+`ReturnTarget` resolves the two into one destination. The exact return is
+accepted only when it is a safe same-origin path (a local absolute path);
+off-origin values such as absolute URLs, `//host`, backslash bypasses, and
+control characters fall back to the server-owned canonical target.
+
+```go
+target := linkwell.ReturnTargetFromRequest(r, linkwell.ReturnTargetConfig{
+	Param: "back_to", // optional; defaults to "back_to"
+	Fallback: linkwell.CanonicalTarget{
+		Label: "Back to vendors",
+		Href:  "/vendors",
+	},
+})
+
+// target.Href is always a safe path to link/redirect to.
+// target.Exact reports whether the request's back_to was accepted.
+ctrl := linkwell.RedirectLink(target.Label, target.Href)
+```
+
+Use `ReturnTargetFromValue(raw, cfg)` when the parameter is read outside
+`net/http`. The `Fallback` href is treated as trusted server-owned data and is
+not re-validated.
+
 ## Controls
 
 > Hypertext is the simultaneous presentation of information and controls such that the information BECOMES THE AFFORDANCE through which choices are obtained and actions are selected.

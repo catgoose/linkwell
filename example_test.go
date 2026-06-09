@@ -258,6 +258,23 @@ func ExampleFromNav() {
 	// /users/42
 }
 
+func ExampleReturnTargetFromValue() {
+	cfg := linkwell.ReturnTargetConfig{
+		Fallback: linkwell.CanonicalTarget{Label: "Back to vendors", Href: "/vendors"},
+	}
+
+	// A safe same-origin path is accepted verbatim (query preserved).
+	safe := linkwell.ReturnTargetFromValue("/vendors/42?tab=orders", cfg)
+	fmt.Printf("%s -> %s (exact=%t)\n", safe.Label, safe.Href, safe.Exact)
+
+	// An off-origin value is rejected; the canonical fallback is used.
+	unsafe := linkwell.ReturnTargetFromValue("//evil.example.com", cfg)
+	fmt.Printf("%s -> %s (exact=%t)\n", unsafe.Label, unsafe.Href, unsafe.Exact)
+	// Output:
+	// Back -> /vendors/42?tab=orders (exact=true)
+	// Back to vendors -> /vendors (exact=false)
+}
+
 func ExampleFromQueryString() {
 	fmt.Println(linkwell.FromQueryString(3))
 	fmt.Println(linkwell.FromQueryString(0))
