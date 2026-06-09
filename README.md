@@ -287,6 +287,39 @@ linkwell.RemoveLink("/projects/42", "/teams/7", "related")
 >
 > -- The Wisdom of the Uniform Interface
 
+### Declarative Policy (recommended)
+
+`Breadcrumbs()` builds a route-display policy that is decoupled from the link
+graph and sitemap. Declare a mounted-app prefix, an app-local root, and stable
+labels for known routes; supply per-request labels for DB-backed parameters at
+resolve time. The policy is pure data and safe to reuse as a package-level value
+-- `Resolve` never mutates it.
+
+```go
+// Build once (e.g. a package-level value).
+salesCrumbs := linkwell.Breadcrumbs().
+	Prefix("/app/sales-goals"). // trimmed for matching; Hrefs stay absolute
+	Root("Sales Goals").        // app-local root; Href defaults to the prefix
+	Crumb("/subdivisions", "Subdivisions").
+	Crumb("/agents", "Agents")
+
+// At request time, override the ":id" segment with a loaded entity name.
+crumbs := salesCrumbs.Resolve("/app/sales-goals/subdivisions/81",
+	linkwell.CrumbLabel("/subdivisions/:id", "Atwater Villas"),
+)
+// Sales Goals (/app/sales-goals) > Subdivisions (/app/sales-goals/subdivisions)
+//   > [Atwater Villas]
+```
+
+Patterns support exact segments and `:param` segments that each match one path
+segment. Precedence: runtime labels beat policy labels, exact segments beat
+`:param` patterns, and unmatched segments fall back to `TitleFromPath`. The
+terminal crumb has an empty `Href` (current page, rendered as text).
+
+The link-graph and path helpers below remain for sitemap-driven trails and
+simple cases, but the declarative policy is the preferred API for app-local
+breadcrumbs with dynamic labels.
+
 ### From Link Graph
 
 Walk the `rel="up"` chain from a path to build a breadcrumb trail. Requires links registered via `Hub` or `Link` with `rel="up"`. Registered titles are preserved -- if a spoke was registered with a custom title, that title appears in the breadcrumb instead of the path-derived label.
