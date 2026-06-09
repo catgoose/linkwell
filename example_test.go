@@ -163,6 +163,29 @@ func ExampleRemoveLink() {
 	// 0
 }
 
+func ExampleBreadcrumbs() {
+	policy := linkwell.Breadcrumbs().
+		Prefix("/app/sales-goals").
+		Root("Sales Goals").
+		Crumb("/subdivisions", "Subdivisions").
+		Crumb("/agents", "Agents")
+
+	crumbs := policy.Resolve("/app/sales-goals/subdivisions/81",
+		linkwell.CrumbLabel("/subdivisions/:id", "Atwater Villas"),
+	)
+	for _, c := range crumbs {
+		if c.Href == "" {
+			fmt.Printf("[%s]\n", c.Label)
+		} else {
+			fmt.Printf("%s (%s)\n", c.Label, c.Href)
+		}
+	}
+	// Output:
+	// Sales Goals (/app/sales-goals)
+	// Subdivisions (/app/sales-goals/subdivisions)
+	// [Atwater Villas]
+}
+
 func ExampleBreadcrumbsFromLinks() {
 	linkwell.ResetForTesting()
 
