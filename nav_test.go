@@ -67,6 +67,24 @@ func TestSetActiveNavItem_DoesNotMutateOriginal(t *testing.T) {
 	require.False(t, items[0].Active, "original slice must not be mutated")
 }
 
+func TestSetActiveNavItem_MatchPathOnlyIgnoresQueryAndFragment(t *testing.T) {
+	items := []NavItem{
+		{Label: "Sales Goals", Href: "/app/sales-goals?quarter=2026Q2#summary"},
+		{Label: "Settings", Href: "/settings"},
+	}
+	result := SetActiveNavItem(items, "/app/sales-goals?quarter=2026Q3#thread", MatchPathOnly())
+	require.True(t, result[0].Active)
+	require.False(t, result[1].Active)
+}
+
+func TestSetActiveNavItem_DefaultKeepsQuerySensitiveBehavior(t *testing.T) {
+	items := []NavItem{
+		{Label: "Sales Goals", Href: "/app/sales-goals?quarter=2026Q2"},
+	}
+	result := SetActiveNavItem(items, "/app/sales-goals?quarter=2026Q3")
+	require.False(t, result[0].Active)
+}
+
 // ---------------------------------------------------------------------------
 // SetActiveNavItemPrefix
 // ---------------------------------------------------------------------------
@@ -183,6 +201,32 @@ func TestSetActiveNavItemPrefix_ChildPrefixMatchActivatesParent(t *testing.T) {
 	result := SetActiveNavItemPrefix(items, "/demo/inventory/99")
 	require.True(t, result[0].Active, "parent Tables should be active via child prefix match")
 	require.True(t, result[0].Children[0].Active, "child Inventory should be active via prefix")
+}
+
+func TestSetActiveNavItemPrefix_MatchPathOnlyIgnoresQueryAndFragment(t *testing.T) {
+	items := []NavItem{
+		{Label: "Dashboard", Href: "/app/sales-goals?quarter=2026Q2"},
+		{Label: "Agents", Href: "/app/sales-goals/agents?quarter=2026Q2#list"},
+	}
+	result := SetActiveNavItemPrefix(items, "/app/sales-goals/agents/42?quarter=2026Q3#detail", MatchPathOnly())
+	require.False(t, result[0].Active, "shorter sibling should lose after path-only normalization")
+	require.True(t, result[1].Active)
+}
+
+func TestSetActiveNavItemPrefix_DefaultKeepsQuerySensitiveBehavior(t *testing.T) {
+	items := []NavItem{
+		{Label: "Dashboard", Href: "/app/sales-goals?quarter=2026Q2"},
+	}
+	result := SetActiveNavItemPrefix(items, "/app/sales-goals/agents?quarter=2026Q2")
+	require.False(t, result[0].Active)
+}
+
+func TestSetActiveNavItemPrefix_MatchPathOnlyPreservesSegmentBoundary(t *testing.T) {
+	items := []NavItem{
+		{Label: "Agents", Href: "/agents?tab=current"},
+	}
+	result := SetActiveNavItemPrefix(items, "/agents-old?tab=current", MatchPathOnly())
+	require.False(t, result[0].Active)
 }
 
 // ---------------------------------------------------------------------------
