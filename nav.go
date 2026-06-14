@@ -71,16 +71,32 @@ type Breadcrumb struct {
 	Href string
 }
 
+type navMatchConfig struct {
+	pathOnly bool
+}
+
+// NavMatchOption configures active navigation matching.
+type NavMatchOption func(*navMatchConfig)
+
+// MatchPathOnly strips query strings and fragments before active nav matching.
+func MatchPathOnly() NavMatchOption {
+	return func(cfg *navMatchConfig) {
+		cfg.pathOnly = true
+	}
+}
+
 // BreadcrumbLabelHome is the default label for the root breadcrumb segment.
 const BreadcrumbLabelHome = "Home"
 
 // SetActiveNavItem sets the Active flag on nav items using exact path matching.
 // A parent item is also marked active if any of its children match. Returns a
 // new slice; the input is not modified.
-func SetActiveNavItem(items []NavItem, currentPath string) []NavItem {
+func SetActiveNavItem(items []NavItem, currentPath string, opts ...NavMatchOption) []NavItem {
+	cfg := newNavMatchConfig(opts)
+	currentMatchPath := navMatchPath(currentPath, cfg)
 	result := make([]NavItem, len(items))
 	for i, item := range items {
-		item.Children = SetActiveNavItem(item.Children, currentPath)
+		item.Children = SetActiveNavItem(item.Children, currentPath, opts...)
 		childActive := false
 		for _, child := range item.Children {
 			if child.Active {
@@ -88,7 +104,7 @@ func SetActiveNavItem(items []NavItem, currentPath string) []NavItem {
 				break
 			}
 		}
-		item.Active = item.Href == currentPath || childActive
+		item.Active = navMatchPath(item.Href, cfg) == currentMatchPath || childActive
 		result[i] = item
 	}
 	return result
@@ -103,20 +119,23 @@ func SetActiveNavItem(items []NavItem, currentPath string) []NavItem {
 // of sibling selection. Use for section-level navigation where /users should
 // be active when the path is /users/42/edit. Returns a new slice; the input is
 // not modified.
-func SetActiveNavItemPrefix(items []NavItem, currentPath string) []NavItem {
+func SetActiveNavItemPrefix(items []NavItem, currentPath string, opts ...NavMatchOption) []NavItem {
+	cfg := newNavMatchConfig(opts)
+	currentMatchPath := navMatchPath(currentPath, cfg)
 	result := make([]NavItem, len(items))
 	bestIdx := -1
 	bestLen := -1
 	for i, item := range items {
-		item.Children = SetActiveNavItemPrefix(item.Children, currentPath)
+		item.Children = SetActiveNavItemPrefix(item.Children, currentPath, opts...)
 		result[i] = item
+		href := navMatchPath(item.Href, cfg)
 		// Require href+separator to avoid "/" matching every path. Longer Href
 		// means a deeper segment-bounded prefix (exact match is longest), so
 		// len comparison picks the best sibling; ties keep the first item.
-		if item.Href != "" &&
-			(currentPath == item.Href || strings.HasPrefix(currentPath, item.Href+"/")) &&
-			len(item.Href) > bestLen {
-			bestLen = len(item.Href)
+		if href != "" &&
+			(currentMatchPath == href || strings.HasPrefix(currentMatchPath, href+"/")) &&
+			len(href) > bestLen {
+			bestLen = len(href)
 			bestIdx = i
 		}
 	}
@@ -131,6 +150,30 @@ func SetActiveNavItemPrefix(items []NavItem, currentPath string) []NavItem {
 		result[i].Active = i == bestIdx || childActive
 	}
 	return result
+}
+
+func newNavMatchConfig(opts []NavMatchOption) navMatchConfig {
+	var cfg navMatchConfig
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&cfg)
+		}
+	}
+	return cfg
+}
+
+func navMatchPath(path string, cfg navMatchConfig) string {
+	if cfg.pathOnly {
+		return stripQueryFragment(path)
+	}
+	return path
+}
+
+func stripQueryFragment(path string) string {
+	if i := strings.IndexAny(path, "?#"); i >= 0 {
+		return path[:i]
+	}
+	return path
 }
 
 // NavItemFromControl converts a Control into a NavItem, mapping Label, Href,
