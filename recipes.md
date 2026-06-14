@@ -36,6 +36,40 @@ tabs := linkwell.NewTabConfig("dashboard-tabs", "#tab-content",
 tabs.Items = linkwell.SetActiveTab(tabs.Items, "/dashboard/network")
 ```
 
+### Active nav and breadcrumb fallback with query-scoped views
+
+When views carry scope in the query string (`?quarter=2026Q3`), pass
+`MatchPathOnly()` so the filter does not break active-nav selection, and use a
+`BreadcrumbResolver` to fall back from explicit crumbs to a policy to the path.
+
+```go
+sectionNav := []linkwell.NavItem{
+    {Label: "Subdivisions", Href: "/app/sales-goals/subdivisions", Icon: "map"},
+    {Label: "Agents", Href: "/app/sales-goals/agents", Icon: "users"},
+}
+// "Agents" stays active for "/app/sales-goals/agents/346?quarter=2026Q3".
+sectionNav = linkwell.SetActiveNavItemPrefix(sectionNav, r.URL.RequestURI(), linkwell.MatchPathOnly())
+
+salesCrumbs := linkwell.Breadcrumbs().
+    Prefix("/app/sales-goals").Root("Sales Goals").
+    Crumb("/agents", "Agents")
+
+resolver := linkwell.NewBreadcrumbResolver(
+    linkwell.ExplicitBreadcrumbs(),          // handler-supplied trail wins
+    linkwell.PolicyBreadcrumbs(salesCrumbs), // declarative policy + runtime labels
+    linkwell.ParentBreadcrumbs(),            // app-supplied parent/up trail
+    linkwell.PathBreadcrumbs(),              // last-resort path fallback
+)
+
+crumbs := resolver.Resolve(linkwell.BreadcrumbResolveContext{
+    Path:          r.URL.Path,
+    RuntimeLabels: []linkwell.CrumbOption{linkwell.CrumbLabel("/agents/:id", agent.Name)},
+})
+```
+
+The handler loads `agent.Name`; linkwell only orders the fallback sources and
+never performs the lookup itself.
+
 ### Scheduled widget updates (tavern side)
 
 tavern's `ScheduledPublisher` renders each widget section on independent intervals and publishes the rendered HTML as OOB fragments. The browser receives these via SSE and HTMX swaps them into the page — no polling, no JavaScript state.

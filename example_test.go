@@ -186,6 +186,36 @@ func ExampleBreadcrumbs() {
 	// [Atwater Villas]
 }
 
+func ExampleNewBreadcrumbResolver() {
+	policy := linkwell.Breadcrumbs().
+		Prefix("/app/sales-goals").
+		Root("Sales Goals").
+		Crumb("/agents", "Agents")
+
+	resolver := linkwell.NewBreadcrumbResolver(
+		linkwell.ExplicitBreadcrumbs(),
+		linkwell.PolicyBreadcrumbs(policy),
+		linkwell.ParentBreadcrumbs(),
+		linkwell.PathBreadcrumbs(),
+	)
+
+	crumbs := resolver.Resolve(linkwell.BreadcrumbResolveContext{
+		Path:          "/app/sales-goals/agents/346",
+		RuntimeLabels: []linkwell.CrumbOption{linkwell.CrumbLabel("/agents/:id", "Ashley Pope")},
+	})
+	for _, c := range crumbs {
+		if c.Href == "" {
+			fmt.Printf("[%s]\n", c.Label)
+		} else {
+			fmt.Printf("%s (%s)\n", c.Label, c.Href)
+		}
+	}
+	// Output:
+	// Sales Goals (/app/sales-goals)
+	// Agents (/app/sales-goals/agents)
+	// [Ashley Pope]
+}
+
 func ExampleBreadcrumbsFromLinks() {
 	linkwell.ResetForTesting()
 
@@ -310,6 +340,22 @@ func ExampleSetActiveNavItemPrefix() {
 	// Output:
 	// Users active=true
 	// Settings active=false
+}
+
+func ExampleSetActiveNavItemPrefix_matchPathOnly() {
+	items := []linkwell.NavItem{
+		{Label: "Dashboard", Href: "/app/sales-goals"},
+		{Label: "Agents", Href: "/app/sales-goals/agents"},
+	}
+	// The ?quarter filter is ignored; the longest segment-bounded prefix wins.
+	result := linkwell.SetActiveNavItemPrefix(items,
+		"/app/sales-goals/agents/42?quarter=2026Q3", linkwell.MatchPathOnly())
+	for _, item := range result {
+		fmt.Printf("%s active=%v\n", item.Label, item.Active)
+	}
+	// Output:
+	// Dashboard active=false
+	// Agents active=true
 }
 
 func ExampleNavItemFromControl() {

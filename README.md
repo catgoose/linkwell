@@ -17,6 +17,8 @@
     - [Title From Path](#title-from-path)
     - [Dynamic Links](#dynamic-links)
   - [Breadcrumbs](#breadcrumbs)
+    - [Declarative Policy](#declarative-policy-recommended)
+    - [Fallback Resolver](#fallback-resolver)
     - [From Link Graph](#from-link-graph)
     - [From URL Path](#from-url-path)
     - [Bitmask Breadcrumbs](#bitmask-breadcrumbs)
@@ -320,6 +322,32 @@ The link-graph and path helpers below remain for sitemap-driven trails and
 simple cases, but the declarative policy is the preferred API for app-local
 breadcrumbs with dynamic labels.
 
+### Fallback Resolver
+
+When one source isn't enough, `NewBreadcrumbResolver` composes ordered sources
+and returns the first non-empty trail. linkwell owns the fallback order; it
+never loads entities. Handlers pass request-local data -- dynamic labels and
+explicit or parent crumbs -- through a `BreadcrumbResolveContext`.
+
+```go
+resolver := linkwell.NewBreadcrumbResolver(
+	linkwell.ExplicitBreadcrumbs(),          // route-provided trail, if any
+	linkwell.PolicyBreadcrumbs(salesCrumbs), // declarative policy + runtime labels
+	linkwell.ParentBreadcrumbs(),            // app-provided parent/up trail
+	linkwell.PathBreadcrumbs(),              // path-derived fallback
+)
+
+crumbs := resolver.Resolve(linkwell.BreadcrumbResolveContext{
+	Path:          "/app/sales-goals/agents/346",
+	RuntimeLabels: []linkwell.CrumbOption{linkwell.CrumbLabel("/agents/:id", "Ashley Pope")},
+})
+// Sales Goals (/app/sales-goals) > Agents (/app/sales-goals/agents) > [Ashley Pope]
+```
+
+Sources are tried in order, so put the most specific first and `PathBreadcrumbs`
+last. `Explicit` and `Parent` trails arrive from the handler as breadcrumb data;
+linkwell composes the order but performs no database or entity lookup.
+
 ### From Link Graph
 
 Walk the `rel="up"` chain from a path to build a breadcrumb trail. Requires links registered via `Hub` or `Link` with `rel="up"`. Registered titles are preserved -- if a spoke was registered with a custom title, that title appears in the breadcrumb instead of the path-derived label.
@@ -514,6 +542,21 @@ items := linkwell.SetActiveNavItemPrefix(nav.Items, "/users/42/edit")
 ```
 
 Both functions handle nested children: a parent is marked active if any child matches.
+
+By default the path is compared verbatim, so a query string or fragment
+prevents a match. Pass `MatchPathOnly()` to strip the query and fragment from
+both the request path and item Hrefs before matching -- useful when filters or
+scope live in the query string (e.g. `?quarter=2026Q3`):
+
+```go
+// Exact match stays active despite the query string.
+items := linkwell.SetActiveNavItem(nav.Items, "/users?tab=active", linkwell.MatchPathOnly())
+
+// Prefix match ignores ?quarter while keeping segment boundaries
+// ("/agents" still won't match "/agents-old").
+items = linkwell.SetActiveNavItemPrefix(nav.Items,
+	"/app/sales-goals/agents?quarter=2026Q3", linkwell.MatchPathOnly())
+```
 
 ## Tabs
 
