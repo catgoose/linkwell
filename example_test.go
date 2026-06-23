@@ -2,6 +2,7 @@ package linkwell_test
 
 import (
 	"fmt"
+	"net/http/httptest"
 
 	"github.com/catgoose/linkwell"
 )
@@ -303,6 +304,50 @@ func ExampleReturnTargetFromValue() {
 	// Output:
 	// Back -> /vendors/42?tab=orders (exact=true)
 	// Back to vendors -> /vendors (exact=false)
+}
+
+func ExampleOriginNav() {
+	trail := []linkwell.OriginCrumb{
+		{Label: "Sales Goals", Href: "/app/sales-goals"},
+		{Label: "Agents", Href: "/app/sales-goals/agents"},
+	}
+
+	// Forward dynamic origin context to an outbound link.
+	href := linkwell.OriginNav("/app/sales-goals/agents/346", trail)
+
+	// The destination handler decodes the trail from the request.
+	r := httptest.NewRequest("GET", href, nil)
+	decoded, ok := linkwell.OriginTrailFromRequest(r)
+	fmt.Println(ok)
+	for _, c := range decoded {
+		fmt.Printf("%s -> %s\n", c.Label, c.Href)
+	}
+	// Output:
+	// true
+	// Sales Goals -> /app/sales-goals
+	// Agents -> /app/sales-goals/agents
+}
+
+func ExampleOriginTrailFromValue() {
+	value := linkwell.OriginTrailParam([]linkwell.OriginCrumb{
+		{Label: "Reports", Href: "/reports"},
+		{Label: "Q3", Href: "/reports?quarter=2026Q3"},
+	})
+
+	decoded, ok := linkwell.OriginTrailFromValue(value)
+	fmt.Println(ok)
+	for _, c := range decoded {
+		fmt.Printf("%s -> %s\n", c.Label, c.Href)
+	}
+
+	// An absent or malformed value is rejected as a whole.
+	_, ok = linkwell.OriginTrailFromValue("")
+	fmt.Println(ok)
+	// Output:
+	// true
+	// Reports -> /reports
+	// Q3 -> /reports?quarter=2026Q3
+	// false
 }
 
 func ExampleFromQueryString() {
