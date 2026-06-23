@@ -22,6 +22,7 @@
     - [From Link Graph](#from-link-graph)
     - [From URL Path](#from-url-path)
     - [Bitmask Breadcrumbs](#bitmask-breadcrumbs)
+    - [Dynamic Origin Trail](#dynamic-origin-trail)
   - [Controls](#controls)
     - [Factory Functions](#factory-functions)
     - [Control Modifiers](#control-modifiers)
@@ -393,6 +394,36 @@ crumbs := linkwell.ResolveFromMask(mask)
 href := linkwell.FromNav("/users/42", c.QueryParam("from"))
 // "/users/42?from=3" if mask was 3
 ```
+
+### Dynamic Origin Trail
+
+The `?from=` bitmask replays breadcrumbs registered at startup, so it fits fixed
+origins. When the trail depends on runtime data — an entity name, a filtered
+view, a path the user actually came from — encode it as a dynamic origin trail
+instead. linkwell handles the serialization and validation; apps supply the
+labels and hrefs and own the rendering.
+
+```go
+// Outbound link: forward where the user is coming from.
+trail := []linkwell.OriginCrumb{
+	{Label: "Sales Goals", Href: "/app/sales-goals"},
+	{Label: agent.Name, Href: "/app/sales-goals/agents/" + agent.ID},
+}
+href := linkwell.OriginNav("/app/tasks/new", trail)
+// "/app/tasks/new?origin=<encoded>", existing query and fragment preserved
+
+// Destination handler: decode it back into breadcrumbs.
+if origin, ok := linkwell.OriginTrailFromRequest(r); ok {
+	crumbs := linkwell.OriginCrumbsToBreadcrumbs(origin)
+	_ = crumbs // render with your breadcrumb component
+}
+```
+
+Each crumb's `Href` is validated as a safe same-origin local path with the same
+rules as `ReturnTarget` (absolute URLs, `//host`, backslash bypasses, and
+control characters are rejected); a trail with any invalid crumb is dropped
+whole. An origin trail is display context only — it tells a page where the user
+came from, never where it is safe to redirect. Use `ReturnTarget` for that.
 
 ### Return Targets
 
